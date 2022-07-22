@@ -388,14 +388,25 @@ parse_args() {
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
       h | \?) usage "$0" ;;
-      # t) tools=();tools+=("$OPTARG");;
       t) tools="${tools} ${OPTARG}";;
       D) ENV="dev";;
       x) set -x ;;
     esac
   done
   if [ -z "$tools" ]; then
-    tools="${supported_tools}"
+    if [ ! -z "$SCRIBE_TOOLS" ]; then
+      tools="${SCRIBE_TOOLS}"
+    else
+        tools="${supported_tools}"
+    fi
+  fi
+
+  if [ ! -z "$SCRIBE_DEBUG" ]; then
+    log_set_priority 10
+  fi
+
+  if [ ! -z "$SCRIBE_INSTALL_DIR" ]; then
+    install_dir="${SCRIBE_INSTALL_DIR}"
   fi
 
   shift $((OPTIND - 1))
