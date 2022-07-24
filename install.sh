@@ -391,7 +391,7 @@ parse_args() {
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
-      h | \?) usage $0;;
+      h | \?) usage;;
       t) tools="${tools} ${OPTARG}";;
       D) ENV="dev";;
       x) set -x ;;
