@@ -11,7 +11,7 @@ get_latest_artifact() {
   os="$4"
   arch="$5"
 
-  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "${ENV}" ]; then
     subpath=${name}/${os}/${arch}
@@ -29,7 +29,7 @@ get_latest_artifact() {
     log_err "could not find latest artifact, url='${url}'"
     return 1
   fi
-  
+
   latestDownloadUrl=$(curl --silent $latestArtifact | grep downloadUri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
   log_debug "get_latest_artifact(latestArtifact=${latestArtifact}, latestDownloadUrl=${latestDownloadUrl})"
 
@@ -45,7 +45,7 @@ get_artifact() {
   version="$6"
   format="$7"
   
-  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "${ENV}" ]; then
     subpath=${name}/${os}/${arch}/${version}
@@ -79,7 +79,7 @@ download_asset() (
   version="$7"
   format="$8"
 
-  log_debug "download_asset(url=${download_url}, repo=${download_repo}, download_dir=${download_dir}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "download_asset(url=${download_url}, repo=${download_repo}, download_dir=${download_dir}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "$version" ]; then
     asset_url=$(get_latest_artifact "${download_url}" "${download_repo}" "${name}" "${os}" "${arch}")
@@ -93,6 +93,9 @@ download_asset() (
   fi
 
   asset_filename=$(basename $asset_url)
+  actualVersion=$(echo ${asset_filename} | cut -d '_' -f 2)
+  log_info "Downloading, Version=${actualVersion}"
+
   asset_filepath="${download_dir}/${asset_filename}"
   http_download "${asset_filepath}" "${asset_url}"
   asset_file_exists "${asset_filepath}"
@@ -442,10 +445,10 @@ for val in ${tools}; do
   binary=$(get_binary_name "${os}" "${arch}" "${tool}")
 
   version=$(echo "${val}" | awk -F: '{print $2}')
-  log_debug "Selected, tool=${tool}, version=${version}"
+  log_debug "Selected, tool=${tool}, version=${version:-latest}"
   if echo "${supported_tools}" | grep -q "${tool}";
   then
-    log_info "Trying to download, tool=${tool}, version=${version}"
+    log_info "Trying to download, tool=${tool}, version=${version:-latest}"
     download_install_asset "${download_url}" "${download_repo}" "${download_dir}" "${install_dir}" "${tool}" "${os}" "${arch}" "${version}" "${format}" "${binary}"
     if [ "$?" != "0" ]; then
         log_err "failed to install ${tool}"
