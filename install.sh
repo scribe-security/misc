@@ -1,7 +1,7 @@
 #!/bin/sh
 download_repo="scribe-generic-public-local"
 download_url="https://scribesecuriy.jfrog.io/artifactory"
-install_dir="${HOME}/.scribe/bin/"
+install_dir="${HOME}/.scribe/bin"
 
 
 get_latest_artifact() {
@@ -202,7 +202,7 @@ http_download() {
 }
 
 log_prefix() {
-  echo "$0"
+  echo "scribe"
 }
 
 _logp=6
