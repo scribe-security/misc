@@ -158,7 +158,7 @@ is_command() {
 }
 
 echoerr() {
-  echo "$@" 1>&2
+  echo -n "$@\n" 1>&2
 }
 
 http_download_curl() {
@@ -420,7 +420,7 @@ os=$(uname_os)
 arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
-supported_tools="gensbom valint"
+supported_tools="valint gensbom"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
 
@@ -445,7 +445,7 @@ for val in ${tools}; do
   binary=$(get_binary_name "${os}" "${arch}" "${tool}")
 
   version=$(echo "${val}" | awk -F: '{print $2}')
-  log_debug "Selected, tool=${tool}, version=${version:-latest}"
+  log_info "Selected, tool=${tool}, version=${version:-latest}"
   if echo "${supported_tools}" | grep -q "${tool}";
   then
     log_info "Trying to download, tool=${tool}, version=${version:-latest}"
@@ -458,4 +458,8 @@ for val in ${tools}; do
   else
       log_err "Tool not support, Supported=${supported_tools}"
   fi
+
+    echo -en "\n"
+
+  
 done
