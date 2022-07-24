@@ -372,13 +372,14 @@ unpack() (
 )
 
 usage() {
-  this=$1
-  cat <<EOF
+  this="install.sh"
+  cat<<EOF
 $this: download go binaries for scribe security
 Usage: $this [-b] bindir [-d] [-t tool]
   -b install directory , Default - "${install_dir}"
   -d debug log
-  -t tool list 'tool:version', Default - "${supported_tools[@]}"
+  -t tool list 'tool:version', Default - "${supported_tools}"
+  -h usage
 
   Empty version will select the latest version.
 EOF
@@ -390,7 +391,7 @@ parse_args() {
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
-      h | \?) usage "$0" ;;
+      h | \?) usage $0;;
       t) tools="${tools} ${OPTARG}";;
       D) ENV="dev";;
       x) set -x ;;

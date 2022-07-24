@@ -14,13 +14,14 @@ Usage: install.sh [-b] bindir [-d] [-t tool]
   -b install directory , Default - "/home/mikey/.scribe/bin/"
   -d debug log
   -t tool list 'tool:version', Default - "gensbom valint"
+  -h usage
 
   Empty version will select the latest version.
 ```
 
 ### Custom install location
 ```
-"curl -sSfL https://raw.githubusercontent.com/scribe-security/misc/master/install.sh | sh -s -- -b /usr/local/bin
+curl -sSfL https://raw.githubusercontent.com/scribe-security/misc/master/install.sh | sh -s -- -b /usr/local/bin
 ```
 
 ### Select specific tool and version
