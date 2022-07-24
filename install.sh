@@ -459,7 +459,5 @@ for val in ${tools}; do
       log_err "Tool not support, Supported=${supported_tools}"
   fi
 
-    echo -en "\n"
-
-  
+    echo -en "\n"  
 done
