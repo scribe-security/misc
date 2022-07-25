@@ -451,7 +451,7 @@ for val in ${tools}; do
         log_err "failed to install ${tool}"
         exit 1
     fi
-    log_info "installed ${install_dir}/${binary}"
+    log_info "Installed ${install_dir}/${binary}"
   else
       log_err "Tool not support, Supported=${supported_tools}"
   fi

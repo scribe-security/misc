@@ -7,8 +7,8 @@ VENDOR="Scribe security, Inc"
 SHORT_DESC="Create SBOM for target"
 LONG_DESC="Generate Software Bill Of Materials (SBOM) from container images and filesystems"
 URL="https://github.com/scribe-security/bomber"
-BASE_PATH=${HOME}/.scribe/bin/
-CMD=gensbom
+tool=gensbom
+scribe_default="${HOME}/.scribe/bin/"
 
 if [[ "$1" == "docker-cli-plugin-metadata" ]]; then
   cat << EOF
@@ -22,10 +22,10 @@ EOF
   exit
 fi
 
-export PATH="${BASE_PATH}:$PATH"
+export PATH="${scribe_default}:$PATH"
 if ! [ -x "$(command -v $CMD)" ]; then
-  echo "${CMD} not found locally"
+  echo "${tool} not found locally"
   exit 1
 fi
 
-$CMD bom "${@:2}"
+$tool bom "${@:2}"
