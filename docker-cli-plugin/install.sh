@@ -132,7 +132,6 @@ parse_args() {
   shift $((OPTIND - 1))
 }
 
-
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
 supported_tools="gensbom"
@@ -165,8 +164,7 @@ install_plugin() {
     done
 }
 
-log_info "Scribe docker cli plugin"
-
+log_info "Installer - Scribe docker cli plugins"
 for tool in ${tools}; do
     case "$tool" in
       gensbom)  

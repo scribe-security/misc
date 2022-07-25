@@ -436,6 +436,8 @@ case "${binid}" in
                 ;;
 esac
 
+
+log_info "Installer - Scribe CLI tools"
 log_debug "Selected, Tools=${tools}"
 for val in ${tools}; do
   tool=$(echo "${val}" | awk -F: '{print $1}')
