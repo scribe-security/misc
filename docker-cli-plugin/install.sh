@@ -137,7 +137,8 @@ plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
 supported_tools="gensbom"
 gensbom_plugins="docker-bom docker-verify"
-base_url=https://raw.githubusercontent.com/scribe-security/misc/master
+branch="feature/docker_cli_plugin"
+base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
 tools=""
 parse_args "$@"
 export PATH="${scribe_default}:$PATH"
@@ -163,6 +164,8 @@ install_plugin() {
         log_info "Installed ${plugin_dir}/${plugin}"
     done
 }
+
+log_info "Scribe docker cli plugin"
 
 for tool in ${tools}; do
     case "$tool" in

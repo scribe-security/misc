@@ -23,7 +23,7 @@ EOF
 fi
 
 export PATH="${scribe_default}:$PATH"
-if ! [ -x "$(command -v $CMD)" ]; then
+if ! [ -x "$(command -v $tool)" ]; then
   echo "${tool} not found locally"
   exit 1
 fi
