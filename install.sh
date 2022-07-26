@@ -23,14 +23,14 @@ get_latest_artifact() {
 
   url=${download_url}/api/storage/${download_repo}/${subpath}
   log_debug "get_latest_artifact(url=${url})"
-  latestArtifact=$(curl --silent ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
+  latestArtifact=$(http_download_stdout ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
   
   if [ -z "${latestArtifact}" ]; then
     log_err "could not find latest artifact, url='${url}'"
     return 1
   fi
-
-  latestDownloadUrl=$(curl --silent $latestArtifact | grep downloadUri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
+  
+  latestDownloadUrl=$(http_download_stdout $latestArtifact | grep downloadUri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
   log_debug "get_latest_artifact(latestArtifact=${latestArtifact}, latestDownloadUrl=${latestDownloadUrl})"
 
   echo "$latestDownloadUrl"
@@ -160,6 +160,21 @@ is_command() {
 echoerr() {
   echo -n "$@\n" 1>&2
 }
+
+http_download_stdout() {
+  source_url=$1
+  log_debug "http_download_stdout $source_url"
+  if is_command curl; then
+    curl --silent ${source_url}
+    return
+  elif is_command wget; then
+    wget -q -O /dev/stdout ${source_url}
+    return
+  fi
+  log_crit "http_download_stdout unable to find wget or curl"
+  return 1
+}
+
 
 http_download_curl() {
   local_file=$1
