@@ -436,7 +436,10 @@ case "${binid}" in
                 ;;
 esac
 
+
+log_info "Installer - Scribe CLI tools"
 log_debug "Selected, Tools=${tools}"
+[ -d $install_dir ] || mkdir -p $install_dir
 for val in ${tools}; do
   tool=$(echo "${val}" | awk -F: '{print $1}')
   binary=$(get_binary_name "${os}" "${arch}" "${tool}")
@@ -451,7 +454,7 @@ for val in ${tools}; do
         log_err "failed to install ${tool}"
         exit 1
     fi
-    log_info "installed ${install_dir}/${binary}"
+    log_info "Installed ${install_dir}/${binary}"
   else
       log_err "Tool not support, Supported=${supported_tools}"
   fi

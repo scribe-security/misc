@@ -28,4 +28,4 @@ if ! [ -x "$(command -v $tool)" ]; then
   exit 1
 fi
 
-$tool bom "${@:2}"
+$tool verify "${@:2}"
