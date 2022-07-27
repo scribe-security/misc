@@ -165,6 +165,7 @@ install_plugin() {
 }
 
 log_info "Installer - Scribe docker cli plugins"
+[ -d $plugin_dir ] || mkdir -p $plugin_dir
 for tool in ${tools}; do
     case "$tool" in
       gensbom)  
