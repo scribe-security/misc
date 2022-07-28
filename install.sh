@@ -1,7 +1,7 @@
 #!/bin/sh
 download_repo="scribe-generic-public-local"
 download_url="https://scribesecuriy.jfrog.io/artifactory"
-install_dir="${HOME}/.scribe/bin/"
+install_dir="${HOME}/.scribe/bin"
 
 
 get_latest_artifact() {
@@ -11,7 +11,7 @@ get_latest_artifact() {
   os="$4"
   arch="$5"
 
-  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "${ENV}" ]; then
     subpath=${name}/${os}/${arch}
@@ -23,14 +23,14 @@ get_latest_artifact() {
 
   url=${download_url}/api/storage/${download_repo}/${subpath}
   log_debug "get_latest_artifact(url=${url})"
-  latestArtifact=$(curl --silent ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
+  latestArtifact=$(http_download_stdout ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
   
   if [ -z "${latestArtifact}" ]; then
     log_err "could not find latest artifact, url='${url}'"
     return 1
   fi
   
-  latestDownloadUrl=$(curl --silent $latestArtifact | grep downloadUri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
+  latestDownloadUrl=$(http_download_stdout $latestArtifact | grep downloadUri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
   log_debug "get_latest_artifact(latestArtifact=${latestArtifact}, latestDownloadUrl=${latestDownloadUrl})"
 
   echo "$latestDownloadUrl"
@@ -45,7 +45,7 @@ get_artifact() {
   version="$6"
   format="$7"
   
-  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "${ENV}" ]; then
     subpath=${name}/${os}/${arch}/${version}
@@ -79,7 +79,7 @@ download_asset() (
   version="$7"
   format="$8"
 
-  log_debug "download_asset(url=${download_url}, repo=${download_repo}, download_dir=${download_dir}, name=${name}, os=${os}, arch=${arch}, version=${version}, format=${format})"
+  log_debug "download_asset(url=${download_url}, repo=${download_repo}, download_dir=${download_dir}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
   if [ -z "$version" ]; then
     asset_url=$(get_latest_artifact "${download_url}" "${download_repo}" "${name}" "${os}" "${arch}")
@@ -93,6 +93,9 @@ download_asset() (
   fi
 
   asset_filename=$(basename $asset_url)
+  actualVersion=$(echo ${asset_filename} | cut -d '_' -f 2)
+  log_info "Downloading, Version=${actualVersion}"
+
   asset_filepath="${download_dir}/${asset_filename}"
   http_download "${asset_filepath}" "${asset_url}"
   asset_file_exists "${asset_filepath}"
@@ -155,8 +158,23 @@ is_command() {
 }
 
 echoerr() {
-  echo "$@" 1>&2
+  echo -n "$@\n" 1>&2
 }
+
+http_download_stdout() {
+  source_url=$1
+  log_debug "http_download_stdout $source_url"
+  if is_command curl; then
+    curl --silent ${source_url}
+    return
+  elif is_command wget; then
+    wget -q -O /dev/stdout ${source_url}
+    return
+  fi
+  log_crit "http_download_stdout unable to find wget or curl"
+  return 1
+}
+
 
 http_download_curl() {
   local_file=$1
@@ -199,7 +217,7 @@ http_download() {
 }
 
 log_prefix() {
-  echo "$0"
+  echo "scribe"
 }
 
 _logp=6
@@ -369,13 +387,14 @@ unpack() (
 )
 
 usage() {
-  this=$1
-  cat <<EOF
+  this="install.sh"
+  cat<<EOF
 $this: download go binaries for scribe security
 Usage: $this [-b] bindir [-d] [-t tool]
   -b install directory , Default - "${install_dir}"
   -d debug log
-  -t tool list 'tool:version', Default - "${supported_tools[@]}"
+  -t tool list 'tool:version', Default - "${supported_tools}"
+  -h usage
 
   Empty version will select the latest version.
 EOF
@@ -387,7 +406,7 @@ parse_args() {
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
-      h | \?) usage "$0" ;;
+      h | \?) usage;;
       t) tools="${tools} ${OPTARG}";;
       D) ENV="dev";;
       x) set -x ;;
@@ -417,7 +436,7 @@ os=$(uname_os)
 arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
-supported_tools="gensbom valint"
+supported_tools="valint gensbom"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
 
@@ -445,10 +464,10 @@ for val in ${tools}; do
   binary=$(get_binary_name "${os}" "${arch}" "${tool}")
 
   version=$(echo "${val}" | awk -F: '{print $2}')
-  log_debug "Selected, tool=${tool}, version=${version}"
+  log_info "Selected, tool=${tool}, version=${version:-latest}"
   if echo "${supported_tools}" | grep -q "${tool}";
   then
-    log_info "Trying to download, tool=${tool}, version=${version}"
+    log_info "Trying to download, tool=${tool}, version=${version:-latest}"
     download_install_asset "${download_url}" "${download_repo}" "${download_dir}" "${install_dir}" "${tool}" "${os}" "${arch}" "${version}" "${format}" "${binary}"
     if [ "$?" != "0" ]; then
         log_err "failed to install ${tool}"
@@ -458,4 +477,6 @@ for val in ${tools}; do
   else
       log_err "Tool not support, Supported=${supported_tools}"
   fi
+
+    echo ""  
 done
