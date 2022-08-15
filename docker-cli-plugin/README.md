@@ -94,7 +94,7 @@ docker verify busybox:latest -v
 
 # Scribe service
 Scribe provides a set of services allowing you to secure your supply chain. \
-Use configuration/args to set `scribe.clientid` (`-U`), `scribe.clientsecret` (`-P`) provided by scribe.
+Use configuration/args to set `scribe.client-id` (`-U`), `scribe.client-secret` (`-P`) provided by scribe.
 Lastly enable scribe client using `-E` flag.
 Gensbom will upload/download sboms to your scribe account.
 
