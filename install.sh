@@ -449,6 +449,8 @@ case "${binid}" in
                 ;;
      linux/amd64)
                 ;;
+     windows/amd64)
+                ;;
      *)
                 log_err "unsupported OS/ARCH combination: $binid , please contact scribe support"
                 exit 1
