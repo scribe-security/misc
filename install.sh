@@ -449,6 +449,8 @@ case "${binid}" in
                 ;;
      linux/amd64)
                 ;;
+     linux/arm64)
+                ;;
      windows/amd64)
                 ;;
      *)
