@@ -158,7 +158,7 @@ is_command() {
 }
 
 echoerr() {
-  echo -n "$@\n" 1>&2
+  echo "$@\n" 1>&2
 }
 
 http_download_stdout() {
