@@ -393,7 +393,7 @@ $this: download go binaries for scribe security
 Usage: $this [-b] bindir [-d] [-t tool]
   -b install directory , Default - "${install_dir}"
   -d debug log
-  -t tool list 'tool:version', Default - "${default_tool}" , Options - "${supported_tools}"
+  -t tool list 'tool:version', Default - "${supported_tools}"
   -h usage
 
   Empty version will select the latest version.
@@ -416,7 +416,7 @@ parse_args() {
     if [ ! -z "$SCRIBE_TOOLS" ]; then
       tools="${SCRIBE_TOOLS}"
     else
-        tools="${default_tool}"
+        tools="${supported_tools}"
     fi
   fi
 
@@ -437,7 +437,6 @@ arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
 supported_tools="valint gensbom"
-default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
 
@@ -475,12 +474,12 @@ for val in ${tools}; do
     log_info "Trying to download, tool=${tool}, version=${version:-latest}"
     download_install_asset "${download_url}" "${download_repo}" "${download_dir}" "${install_dir}" "${tool}" "${os}" "${arch}" "${version}" "${format}" "${binary}"
     if [ "$?" != "0" ]; then
-        log_err "Failed to install ${tool}"
+        log_err "failed to install ${tool}"
         exit 1
     fi
     log_info "Installed ${install_dir}/${binary}"
   else
-      log_err "Tool not supported, Supported=${supported_tools}"
+      log_err "Tool not support, Supported=${supported_tools}"
   fi
 
     echo ""  
