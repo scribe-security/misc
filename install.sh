@@ -416,7 +416,11 @@ parse_args() {
     if [ ! -z "$SCRIBE_TOOLS" ]; then
       tools="${SCRIBE_TOOLS}"
     else
+      if [ -z "${ENV}" ]; then
+        tools="${supported_tools}"
+      else
         tools="${default_tool}"
+      fi
     fi
   fi
 
@@ -436,12 +440,8 @@ os=$(uname_os)
 arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
-supported_tools="valint gensbom"
-if [ -z "${ENV}" ]; then
-  default_tool="valint gensbom"
-else
-  default_tool="valint"
-fi
+supported_tools="gensbom valint"
+default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
 
