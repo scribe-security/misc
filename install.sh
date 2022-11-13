@@ -437,7 +437,11 @@ arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
 supported_tools="valint gensbom"
-default_tool="valint"
+if [ -z "${ENV}" ]; then
+  default_tool="valint gensbom"
+else
+  default_tool="valint"
+fi
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
 
