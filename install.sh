@@ -439,9 +439,6 @@ os=$(uname_os)
 arch=$(uname_arch)
 format=$(get_format_name "${os}" "${arch}" "tar.gz")
 download_dir=$(mktemp -d)
-
-echo "###########" $download_dir
-
 supported_tools="gensbom valint"
 default_tool="valint"
 tools=""
