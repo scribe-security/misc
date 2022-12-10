@@ -418,7 +418,7 @@ parse_args() {
       if [ -z "${ENV}" ]; then
         tools="${supported_tools}"
       else
-        tools="${default_tool}"
+        tools="${supported_tools}"
       fi
     fi
   fi
