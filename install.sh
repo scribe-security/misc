@@ -62,14 +62,14 @@ get_artifact() {
   echo "$downloadUrl"
 }
 
-asset_file_exists() (
+asset_file_exists() {
   path="$1"
   if [ ! -f "${path}" ]; then
       return 1
   fi
-)
+}
 
-download_asset() (
+download_asset() {
   download_url="$1"
   download_repo="$2"
   download_dir="$3"
@@ -102,9 +102,9 @@ download_asset() (
 
   log_debug "download_asset(path=${asset_filepath})"
   echo "${asset_filepath}"
-)
+}
 
-download_install_asset() (
+download_install_asset() {
   download_url="$1"
   download_repo="$2"
   download_dir="$3"
@@ -124,17 +124,16 @@ download_install_asset() (
       return 1
   fi
   install_asset "${asset_filepath}" "${install_dir}" "${binary}"
-
-)
+}
 
 # install_asset [asset-path] [destination-path] [binary]
 #
-install_asset() (
+install_asset() {
   asset_filepath="$1"
-  download_dir="$2"
+  install_dir="$2"
   binary="$3"
 
-  log_debug "install_asset(asset=${asset_filepath}, download_dir=${download_dir}, binary=${binary})"
+  log_debug "install_asset(asset=${asset_filepath}, install_dir=${install_dir}, binary=${binary})"
 
   # don't continue if we don't have anything to install
   if [ -z "${asset_filepath}" ]; then
@@ -147,11 +146,11 @@ install_asset() (
   (cd "${archive_dir}" && unpack "${asset_filepath}")
 
   # create the destination dir
-  test ! -d "${download_dir}" && install -d "${download_dir}"
+  test ! -d "${install_dir}" && install -d "${install_dir}"
 
   # install the binary to the destination dir
-  install "${archive_dir}/${binary}" "${download_dir}/"
-)
+  install "${archive_dir}/${binary}" "${install_dir}/"
+}
 
 is_command() {
   command -v "$1" >/dev/null
@@ -339,7 +338,7 @@ uname_os_check() {
   return 1
 }
 
-get_binary_name() (
+get_binary_name() {
   os="$1"
   arch="$2"
   binary="$3"
@@ -352,10 +351,10 @@ get_binary_name() (
   log_debug "get_binary_name(os=${os}, arch=${arch}, binary=${original_binary}) returned '${binary}'"
 
   echo "${binary}"
-)
+}
 
 
-get_format_name() (
+get_format_name() {
   os="$1"
   arch="$2"
   format="$3"
@@ -368,9 +367,9 @@ get_format_name() (
   log_debug "get_format_name(os=${os}, arch=${arch}, format=${original_format}) returned '${format}'"
 
   echo "${format}"
-)
+}
 
-unpack() (
+unpack() {
   archive=$1
 
   log_debug "unpack(archive=${archive})"
@@ -384,7 +383,7 @@ unpack() (
       return 1
       ;;
   esac
-)
+}
 
 usage() {
   this="install.sh"
@@ -419,7 +418,7 @@ parse_args() {
       if [ -z "${ENV}" ]; then
         tools="${supported_tools}"
       else
-        tools="${default_tool}"
+        tools="${supported_tools}"
       fi
     fi
   fi
