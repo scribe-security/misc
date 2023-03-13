@@ -134,9 +134,9 @@ parse_args() {
 
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
-supported_tools="gensbom"
-gensbom_plugins="docker-bom docker-verify"
-branch="feature/docker_cli_plugin"
+supported_tools="valint"
+valint_plugins="docker-bom docker-verify"
+branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
 tools=""
 parse_args "$@"
@@ -168,8 +168,8 @@ log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
 for tool in ${tools}; do
     case "$tool" in
-      gensbom)  
-        install_plugin gensbom "${plugin_dir}" "${gensbom_plugins}"
+      valint)  
+        install_plugin valint "${plugin_dir}" "${valint_plugins}"
       ;;
     esac
 done
