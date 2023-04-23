@@ -47,11 +47,12 @@ get_artifact() {
   
   log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
-  if [ -z "${ENV}" ]; then
-    subpath=${name}/${os}/${arch}/${version}
-  else
+  if [ -n "${ENV}" ] && echo "${ENV}" | tr '[:upper:]' '[:lower:]' | grep -Eq '^(dev|development)$'; then
     subpath=${ENV}/${name}/${os}/${arch}/${version}
-    log_info "Using dev artifacts, subpath='${subpath}'"
+    log_info "Using dev artifacts, subpath='${subpath}', ENV=$ENV"
+  else
+    subpath=${name}/${os}/${arch}/${version}
+    log_info "Using prod artifacts, subpath='${subpath}', ENV=$ENV"
   fi
 
   url=${download_url}/${download_repo}/${subpath}
