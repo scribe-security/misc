@@ -472,7 +472,7 @@ for val in ${tools}; do
   tool=$(echo "${val}" | awk -F: '{print $1}')
   binary=$(get_binary_name "${os}" "${arch}" "${tool}")
 
-  version=$(echo "${val}" | awk -F: '{print $2}')
+  version=$(echo "${val}" | awk -F: '{sub(/^v/, "", $2); print $2}')
   log_info "Selected, tool=${tool}, version=${version:-latest}"
   if echo "${supported_tools}" | grep -q "${tool}";
   then
