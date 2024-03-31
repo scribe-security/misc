@@ -1,8 +1,8 @@
 #!/bin/sh
-download_repo="scribe-generic-public-local"
-download_url="https://scribesecuriy.jfrog.io/artifactory"
+default_download_repo="scribe-generic-public-local"
+default_download_url="https://scribesecuriy.jfrog.io"
+jfrog_artifactory="artifactory"
 install_dir="${HOME}/.scribe/bin"
-
 
 get_latest_artifact() {
   download_url="$1"
@@ -392,6 +392,8 @@ usage() {
 $this: download go binaries for scribe security
 Usage: $this [-b] bindir [-d] [-t tool]
   -b install directory , Default - "${install_dir}"
+  -U JFROG URL , Default - "${default_download_url}"
+  -R JFROG repo , Default - "${default_download_repo}"
   -d debug log
   -t tool list 'tool:version', Default - "${default_tool}" , Options - "${supported_tools}"
   -h usage
@@ -402,16 +404,34 @@ EOF
 }
 
 parse_args() {
-  while getopts "t:b:dh?xD" arg; do
+  while getopts "t:b:U:R:dh?xDx" arg; do
+    echo "HANDLING" $arg
     case "$arg" in
-      b) install_dir="$OPTARG" ;;
-      d) log_set_priority 10 ;;
+      b) 
+        install_dir="$OPTARG"
+        ;;
+      d) 
+        log_set_priority 10 
+        ;;
       h | \?) usage;;
-      t) tools="${tools} ${OPTARG}";;
-      D) ENV="dev";;
-      x) set -x ;;
+      t)
+        tools="${tools} ${OPTARG}"
+        ;;
+      D) 
+        ENV="dev"
+        ;;
+      U)
+        jfrog_url="$OPTARG"
+        ;;
+      R)
+        jfrog_repo="$OPTARG"
+        ;;
+      x) 
+        set -x
+        ;;
     esac
   done
+
   if [ -z "$tools" ]; then
     if [ ! -z "$SCRIBE_TOOLS" ]; then
       tools="${SCRIBE_TOOLS}"
@@ -432,7 +452,24 @@ parse_args() {
     install_dir="${SCRIBE_INSTALL_DIR}"
   fi
 
+  if [ ! -z "$SCRIBE_JFROG_URL" ]; then
+    jfrog_url="${SCRIBE_JFROG_URL}"
+  fi
+
+  if [ ! -z "$SCRIBE_JFROG_REPO" ]; then
+    jfrog_repo="${SCRIBE_JFROG_REPO}"
+  fi
+
+  if [ -z "${jfrog_url}" ]; then
+    jfrog_url="${default_download_url}"
+  fi
+  
+  if [ -z "${jfrog_repo}" ]; then
+    jfrog_repo="${default_download_repo}"
+  fi
+
   shift $((OPTIND - 1))
+
 }
 
 # Install script starts here
@@ -476,8 +513,8 @@ for val in ${tools}; do
   log_info "Selected, tool=${tool}, version=${version:-latest}"
   if echo "${supported_tools}" | grep -q "${tool}";
   then
-    log_info "Trying to download, tool=${tool}, version=${version:-latest}"
-    download_install_asset "${download_url}" "${download_repo}" "${download_dir}" "${install_dir}" "${tool}" "${os}" "${arch}" "${version}" "${format}" "${binary}"
+    log_info "Trying to download, url=${jfrog_url} repo=${jfrog_repo} tool=${tool}, version=${version:-latest}"
+    download_install_asset "${jfrog_url}/${jfrog_artifactory}" "${jfrog_repo}" "${download_dir}" "${install_dir}" "${tool}" "${os}" "${arch}" "${version}" "${format}" "${binary}"
     if [ "$?" != "0" ]; then
         log_err "Failed to install ${tool}"
         exit 1
