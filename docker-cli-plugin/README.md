@@ -25,9 +25,6 @@ docker policy <image> --rule sbom/fresh-sbom@v1 [options]
 * `-x`, `--debug`: Enable debug mode for verbose output.
 * `--verify-only`: Run in verification-only mode, skipping additional checks.
 * `--files`: Include a detailed SBOM analysis with component files.
-Here’s the Markdown with corrected formatting, improved headings, and a bit of reorganization for clarity:
-
-```markdown
 
 ## Policy Configuration
 
@@ -38,6 +35,7 @@ For more detailed information about policy management and rules, refer to the [S
 The plugin provides the capability to evaluate a set of rules from the command line or an entire policy file.
 
 ### Rule Option
+
 The plugin provides access to a set of rules that can be combined with arguments:
 
 ```bash
