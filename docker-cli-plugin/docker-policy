@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Metadata Information
+SCHEME="0.1.0"
+VENDOR="Scribe Security, Inc"
+SHORT_DESC="Evaluate and enforce Supply-Chain policies on container images"
+LONG_DESC="Evaluate and enforce Supply-Chain policies on container images as code"
+URL="https://github.com/scribe-security/valint"
+
+# Tool and Path Configuration
+tool="valint"
+scribe_default="${HOME}/.scribe/bin/"
+
+# Feature Flags and Defaults
+ONLY_VERIFY=${ONLY_VERIFY:-false}
+INCLUDE_FILES=${INCLUDE_FILES:-false}
+DEBUG_MODE=${DEBUG_MODE:-false}
+# output_directory=${output_directory:-"/var/lib/docker/valint_output"}  # Default for Docker metadata
+
+# Help message function
+show_help() {
+  cat << EOF
+Usage: $0 [options]
+
+This Docker CLI plugin evaluates and enforces supply-chain policies on container images.
+
+Options:
+  -h, --help         Show this help message and exit.
+
+Environment Variables:
+  ONLY_VERIFY        Set to false to enable additional checks, such as BOM generation.
+                     (default: true)
+  INCLUDE_FILES      Set to true to include an extensive SBOM analysis with --components files.
+                     (default: false)
+  DEBUG_MODE         Set to true to enable debug logging and increase verbosity in valint with -vv.
+                     (default: false)
+  output_directory   Specify an output directory for metadata (default: /var/lib/docker/valint_output).
+
+Example:
+  DEBUG_MODE=true INCLUDE_FILES=true $0
+
+EOF
+}
+
+# Docker Plugin Metadata Command
+if [[ "$1" == "docker-cli-plugin-metadata" ]]; then
+  cat << EOF
+{
+  "SchemaVersion": "${SCHEME}",
+  "Vendor": "${VENDOR}",
+  "URL": "${URL}",
+  "ShortDescription": "${SHORT_DESC}"
+}
+EOF
+  exit
+fi
+
+# Save docker arguments, i.e. arguments before "rollout"
+while [ $# -gt 0 ]; do
+  if [ "$1" = "policy" ]; then
+    shift
+    break
+  fi
+
+  case $1 in
+    -h|--help)
+      show_help
+      exit
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+
+  DOCKER_ARGS="$DOCKER_ARGS $1"
+  shift
+done
+
+valint_args=()
+while [ $# -gt 0 ]; do
+  case $1 in
+    -x|--debug)
+      echo "Debug mode enabled"
+      DEBUG_MODE=true
+      ;;
+    -d|--output-directory)
+      shift
+      output_directory="$1"
+      echo "Setting Evidence Output Directory '$output_directory'"
+      ;;
+    --verify-only)
+      echo "Verify image using remote evidence only"
+      ONLY_VERIFY=true
+      ;;
+    --files)
+      echo "Include files in SBOM"
+      INCLUDE_FILES=true
+      ;;
+    *)
+      valint_args+=("$1")
+      ;;
+  esac
+
+  shift
+done
+
+# Enable debug logging if DEBUG_MODE is true
+extra_flags=()
+if [[ "$DEBUG_MODE" == true ]]; then
+  set -x
+  extra_flags+=("-vv")
+fi
+
+# Construct Flags Array Based on Feature Toggles
+if [[ "$ONLY_VERIFY" != true ]]; then
+  extra_flags+=("--bom")
+fi
+
+if [[ "$INCLUDE_FILES" == true ]]; then
+  extra_flags+=("--components" "files")
+fi
+
+if [[ -n "$output_directory" ]]; then
+  extra_flags+=("--output-directory" "$output_directory")
+fi
+
+# Combine extra_flags with the remaining arguments
+final_flags=("${valint_args[@]}" "${extra_flags[@]}")
+
+# Log and Execute the Command
+echo "Executing command: $tool 'verify ${final_flags[*]}'"
+# Uncomment the following line to run the actual command
+$tool verify "${final_flags[@]}"
