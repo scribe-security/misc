@@ -135,7 +135,7 @@ parse_args() {
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
 supported_tools="valint"
-valint_plugins="docker-bom docker-verify"
+valint_plugins="docker-policy"
 builtin_policies="scout_trivy.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
