@@ -8,6 +8,7 @@ VENDOR="Scribe Security, Inc"
 SHORT_DESC="Evaluate and enforce Supply-Chain policies on container images"
 LONG_DESC="Evaluate and enforce Supply-Chain policies on container images as code"
 URL="https://github.com/scribe-security/valint"
+EVIDENCE_DIR=${EVIDENCE_DIR:-"evidence"}
 
 # Tool and Path Configuration
 tool="valint"
@@ -17,33 +18,42 @@ scribe_default="${HOME}/.scribe/bin/"
 ONLY_VERIFY=${ONLY_VERIFY:-false}
 INCLUDE_FILES=${INCLUDE_FILES:-false}
 DEBUG_MODE=${DEBUG_MODE:-false}
-# output_directory=${output_directory:-"/var/lib/docker/valint_output"}  # Default for Docker metadata
 
+# Help message function
 # Help message function
 show_help() {
   cat << EOF
-Usage: $0 [options]
+Usage: $0 policy [options]
 
 This Docker CLI plugin evaluates and enforces supply-chain policies on container images.
 
 Options:
-  -h, --help         Show this help message and exit.
+  -h, --help              Show this help message and exit.
+  -x, --debug             Enable debug logging and increase verbosity in valint with -vv.
 
 Environment Variables:
-  ONLY_VERIFY        Set to false to enable additional checks, such as BOM generation.
-                     (default: true)
-  INCLUDE_FILES      Set to true to include an extensive SBOM analysis with --components files.
-                     (default: false)
-  DEBUG_MODE         Set to true to enable debug logging and increase verbosity in valint with -vv.
-                     (default: false)
-  output_directory   Specify an output directory for metadata (default: /var/lib/docker/valint_output).
+  ONLY_VERIFY             Set to true to perform verification without SBOM generation.
+                          (default: false)
+  INCLUDE_FILES           Set to true to include an extensive SBOM analysis with --components files.
+                          (default: false)
+  EVIDENCE_DIR            Specify the directory containing third-party evidence files to include in SBOM.
+                          (default: evidence)
+
+Options:
+  -d, --output-directory  Specify an output directory for metadata (default: /var/lib/docker/valint_output).
+  --verify-only           Verify image using remote evidence only (no local evidence generation).
+  --product-key           Set a specific product key for identifying the product (e.g., for evidence or policy tracking).
+  --product-version       Specify the version of the product (e.g., v1.2).
+  --select                Specify a built-in policy. Supported policies:
+                            - scout: Uses the "scout_trivy.yaml" policy for analysis.
+  --evidence-dir          Specify a directory to create a third-party SBOM from evidence files.
+  --files                 Include files in SBOM generation if INCLUDE_FILES is enabled.
 
 Example:
-  DEBUG_MODE=true INCLUDE_FILES=true $0
+  DEBUG_MODE=true INCLUDE_FILES=true $0 policy mongo-express:latest --rule sbom/fresh-sbom@v1 --product-key my-product --product-version v1.2
 
 EOF
 }
-
 # Docker Plugin Metadata Command
 if [[ "$1" == "docker-cli-plugin-metadata" ]]; then
   cat << EOF
@@ -57,7 +67,7 @@ EOF
   exit
 fi
 
-# Save docker arguments, i.e. arguments before "rollout"
+# Save docker arguments, i.e., arguments before "policy"
 while [ $# -gt 0 ]; do
   if [ "$1" = "policy" ]; then
     shift
@@ -95,10 +105,25 @@ while [ $# -gt 0 ]; do
       echo "Verify image using remote evidence only"
       ONLY_VERIFY=true
       ;;
+    --product-key)
+      shift
+      product_key="$1"
+      echo "Setting product key '$product_key'"
+      ;;
+    --product-version)
+      shift
+      product_version="$1"
+      echo "Setting product version '$product_version'"
+      ;;
     --select)
       shift
       SELCT_POLICY="$1"
       echo "Setting Built-in Policy '$SELCT_POLICY'"
+      ;;
+    --evidence-dir)
+      shift
+      EVIDENCE_DIR="$1"
+      echo "Creating 3rd-party evidence from directory '$EVIDENCE_DIR'"
       ;;
     --files)
       echo "Include files in SBOM"
@@ -113,42 +138,64 @@ while [ $# -gt 0 ]; do
 done
 
 # Enable debug logging if DEBUG_MODE is true
-extra_flags=()
+verify_flags=()
+evidence_flags=()
+policy_flags=()
+product_flags=()
 if [[ "$DEBUG_MODE" == true ]]; then
   set -x
-  extra_flags+=("-vv")
+  verify_flags+=("-vv")
+  evidence_flags+=("-vv")
 fi
 
 # Construct Flags Array Based on Feature Toggles
 if [[ "$ONLY_VERIFY" != true ]]; then
-  extra_flags+=("--bom")
-  extra_flags+=("--provenance")
+  verify_flags+=("--bom")
+  verify_flags+=("--provenance")
 fi
 
 if [[ "$INCLUDE_FILES" == true ]]; then
-  extra_flags+=("--components" "files")
+  verify_flags+=("--components" "files")
 fi
 
 if [[ -n "$output_directory" ]]; then
-  extra_flags+=("--output-directory" "$output_directory")
+  verify_flags+=("--output-directory" "$output_directory")
+  evidence_flags+=("--output-directory" "$output_directory")
+fi
+
+if [[ -n "$product_key" ]]; then
+  product_flags+=("--product-key" "$product_key")
+fi
+if [[ -n "$product_version" ]]; then
+  product_flags+=("--product-version" "$product_version")
 fi
 
 if [[ -n "$SELCT_POLICY" ]]; then
-  # Get Script path
   SCRIPT_PATH=$(dirname "$0")
   case $SELCT_POLICY in
-  "scout")
-    extra_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
-    ;;
-  *)
-    extra_flags+=("--policy" "$SELCT_POLICY")
+    "scout")
+      policy_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
+      ;;
+    *)
+      policy_flags+=("--policy" "$SELCT_POLICY")
+      ;;
   esac
 fi
 
-# Combine extra_flags with the remaining arguments
-final_flags=("${valint_args[@]}" "${extra_flags[@]}")
+# Hack for Evidence Creation for Dir, needs to be supported in valint verify level.
+if [[ -n "$EVIDENCE_DIR" ]]; then
+  for file in $(find "$EVIDENCE_DIR" -type f); do
+    echo "Adding 3rd-party evidence: $file"
+    evidence_final_flags=("${evidence_flags[@]}" "${product_flags[@]}")
+    echo "Executing command: '$tool evidence ${file} ${evidence_final_flags[*]}'"
+    $tool evidence "${file}" "${evidence_final_flags[@]}"
+  done
+fi
+
+# Combine final_flags with the remaining arguments
+final_flags=("${valint_args[@]}" "${verify_flags[@]}" "${policy_flags[@]}" "${product_flags[@]}")
 
 # Log and Execute the Command
-echo "Executing command: $tool 'verify ${final_flags[*]}'"
+echo "Executing command: '$tool verify ${final_flags[*]}'"
 # Uncomment the following line to run the actual command
 $tool verify "${final_flags[@]}"
