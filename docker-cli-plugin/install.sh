@@ -136,6 +136,7 @@ plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
 supported_tools="valint"
 valint_plugins="docker-bom docker-verify"
+builtin_policies="scout_trivy.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
 tools=""
@@ -164,12 +165,28 @@ install_plugin() {
     done
 }
 
+install_policies() {
+  plugin_dir=$1
+  policies=$2
+
+  for policy in ${policies}; do
+    log_info "Selected, policy=${policy}"
+    asset_url="${base_url}/policies/${policy}"
+    asset_filepath="${plugin_dir}/${policy}"
+
+    http_download "${asset_filepath}" "${asset_url}"
+    log_info "Installed ${plugin_dir}/${policy}"
+  done
+
+}
+
 log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
 for tool in ${tools}; do
     case "$tool" in
       valint)  
         install_plugin valint "${plugin_dir}" "${valint_plugins}"
+        install_policies "${plugin_dir}" "${builtin_policies}"
       ;;
     esac
 done

@@ -95,6 +95,11 @@ while [ $# -gt 0 ]; do
       echo "Verify image using remote evidence only"
       ONLY_VERIFY=true
       ;;
+    --select)
+      shift
+      SELCT_POLICY="$1"
+      echo "Setting Built-in Policy '$SELCT_POLICY'"
+      ;;
     --files)
       echo "Include files in SBOM"
       INCLUDE_FILES=true
@@ -117,6 +122,7 @@ fi
 # Construct Flags Array Based on Feature Toggles
 if [[ "$ONLY_VERIFY" != true ]]; then
   extra_flags+=("--bom")
+  extra_flags+=("--provenance")
 fi
 
 if [[ "$INCLUDE_FILES" == true ]]; then
@@ -125,6 +131,18 @@ fi
 
 if [[ -n "$output_directory" ]]; then
   extra_flags+=("--output-directory" "$output_directory")
+fi
+
+if [[ -n "$SELCT_POLICY" ]]; then
+  # Get Script path
+  SCRIPT_PATH=$(dirname "$0")
+  case $SELCT_POLICY in
+  "scout")
+    extra_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
+    ;;
+  *)
+    extra_flags+=("--policy" "$SELCT_POLICY")
+  esac
 fi
 
 # Combine extra_flags with the remaining arguments

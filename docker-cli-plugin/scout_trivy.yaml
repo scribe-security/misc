@@ -1,0 +1,33 @@
+name: "Docker-Scout-Trivy"
+defaults:
+  evidence:
+    signed: false
+rules:
+
+  - uses: sbom/complete-licenses@v1
+    description: "Compliant Licenses: Complete Licenses"
+    level: warning
+
+  - uses: sbom/banned-licenses@v1
+    description: "Compliant Licenses: No GPL Licenses"
+    level: error
+    with:
+      banned-licenses: 
+      - AGPL-1.0-only
+      - AGPL-1.0-or-later
+      - AGPL-3.0-only
+      - AGPL-3.0-or-later
+      - GPL-1.0-only
+      - GPL-1.0-or-later
+      - GPL-2.0-only
+      - GPL-2.0-or-later
+      - GPL-3.0-only
+      - GPL-3.0-or-later
+
+  - uses: sbom/evidence-exists@v1
+    description: "Supply Chain Attestations: SBOM Evidence Exists"
+    level: error
+
+  - uses: slsa/l1-provenance-exists@v1
+    description: "Supply Chain Attestations: Provenance Evidence Exists"
+    level: error

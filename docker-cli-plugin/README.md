@@ -91,10 +91,10 @@ docker policy mongo-express:latest --rule sbom/fresh-sbom@v1
 docker policy mongo-express:latest --rule sbom/fresh-sbom@v1 -x -d /path/to/output
 ```
 
-**Verification Mode with SBOM Analysis:**
+**Verification Mode with remove Evidence Analysis:**
 
 ```bash
-docker policy mongo-express:latest --rule sbom/fresh-sbom@v1 --verify-only --files
+docker policy mongo-express:latest --rule sbom/fresh-sbom@v1 --verify-only
 ```
 
 ### Environment Variables
