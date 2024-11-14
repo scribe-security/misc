@@ -12,12 +12,14 @@ EVIDENCE_DIR=${EVIDENCE_DIR:-"evidence"}
 
 # Tool and Path Configuration
 tool="valint"
+trivy_tool="trivy"
 scribe_default="${HOME}/.scribe/bin/"
 
 # Feature Flags and Defaults
 ONLY_VERIFY=${ONLY_VERIFY:-false}
 INCLUDE_FILES=${INCLUDE_FILES:-false}
 DEBUG_MODE=${DEBUG_MODE:-false}
+# DRY_RUN=${DRY_RUN:-false}
 
 # Help message function
 # Help message function
@@ -90,6 +92,10 @@ while [ $# -gt 0 ]; do
 done
 
 valint_args=()
+echo "TARGET $1"
+target="$1"
+shift
+
 while [ $# -gt 0 ]; do
   case $1 in
     -x|--debug)
@@ -125,6 +131,10 @@ while [ $# -gt 0 ]; do
       EVIDENCE_DIR="$1"
       echo "Creating 3rd-party evidence from directory '$EVIDENCE_DIR'"
       ;;
+    --dry-run)
+      echo "Dry Run Enabled"
+      DRY_RUN=true
+      ;;
     --files)
       echo "Include files in SBOM"
       INCLUDE_FILES=true
@@ -142,6 +152,12 @@ verify_flags=()
 evidence_flags=()
 policy_flags=()
 product_flags=()
+
+if [[ -z "$target" ]]; then
+  echo "No target specified"
+  exit 1
+fi
+
 if [[ "$DEBUG_MODE" == true ]]; then
   set -x
   verify_flags+=("-vv")
@@ -182,13 +198,40 @@ if [[ -n "$SELCT_POLICY" ]]; then
   esac
 fi
 
+if [[ -n "$SELCT_POLICY" && -n "$EVIDENCE_DIR" ]]; then
+
+  case $SELCT_POLICY in
+    "scout")
+      echo "* Running 3rd-Party Tool - Trivy Scan $target"
+      mkdir -p $EVIDENCE_DIR
+
+      # check tool exists
+      if ! [ -x "$(command -v $trivy_tool)" ]; then
+        echo "$trivy_tool not found locally, to install see 'https://aquasecurity.github.io/trivy/v0.57/getting-started/installation/'"
+        echo "Install Trivy from command line 'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin'"
+        exit 1
+      fi
+      echo "Executing command: '$trivy_tool image --exit-code 0 --no-progress $target --output $EVIDENCE_DIR/trivy.results.sarif --format sarif'"
+      if [[ -z "$DRY_RUN" ]]; then
+        $trivy_tool image --exit-code 0 --no-progress "$target" --output "$EVIDENCE_DIR/trivy.results.sarif" --format sarif
+      fi
+      ;;
+    *)
+      echo "No extra command to run"
+      ;;
+  esac
+fi
+
+
+echo "* Adding 3rd-party evidence"
 # Hack for Evidence Creation for Dir, needs to be supported in valint verify level.
 if [[ -n "$EVIDENCE_DIR" ]]; then
   for file in $(find "$EVIDENCE_DIR" -type f); do
-    echo "Adding 3rd-party evidence: $file"
     evidence_final_flags=("${evidence_flags[@]}" "${product_flags[@]}")
     echo "Executing command: '$tool evidence ${file} ${evidence_final_flags[*]}'"
-    $tool evidence "${file}" "${evidence_final_flags[@]}"
+    if [[ -z "$DRY_RUN" ]]; then
+        $tool evidence "${file}" "${evidence_final_flags[@]}"
+    fi
   done
 fi
 
@@ -196,6 +239,8 @@ fi
 final_flags=("${valint_args[@]}" "${verify_flags[@]}" "${policy_flags[@]}" "${product_flags[@]}")
 
 # Log and Execute the Command
-echo "Executing command: '$tool verify ${final_flags[*]}'"
+echo "Executing command: '$tool verify $target ${final_flags[*]}'"
 # Uncomment the following line to run the actual command
-$tool verify "${final_flags[@]}"
+if [[ -z "$DRY_RUN" ]]; then
+  $tool verify "$target" "${final_flags[@]}"
+fi

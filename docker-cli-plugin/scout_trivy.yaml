@@ -31,3 +31,7 @@ rules:
   - uses: slsa/l1-provenance-exists@v1
     description: "Supply Chain Attestations: Provenance Evidence Exists"
     level: error
+
+  - uses: images/banned-users@v1
+    description: "Default Non-Root User: No Root User"
+    level: error
