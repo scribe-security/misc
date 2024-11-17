@@ -154,7 +154,7 @@ install_plugin() {
         log_info "Selected, tool=${tool}, plugin=${plugin}"
         if ! is_command $tool; then
                 log_info "Tool not found, Downloading, Tool: $tool"
-                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool "$@"
+                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool
             return
         fi
         log_info "Downloading plugin, ${plugin}"
