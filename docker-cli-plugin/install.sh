@@ -155,7 +155,6 @@ install_plugin() {
         if ! is_command $tool; then
                 log_info "Tool not found, Downloading, Tool: $tool"
                 curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool
-            return
         fi
         log_info "Downloading plugin, ${plugin}"
         asset_url="${base_url}/docker-cli-plugin/${plugin}"
