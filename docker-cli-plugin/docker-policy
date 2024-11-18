@@ -12,7 +12,6 @@ EVIDENCE_DIR=${EVIDENCE_DIR:-"evidence"}
 
 # Tool and Path Configuration
 tool="valint"
-trivy_tool="trivy"
 scribe_default="${HOME}/.scribe/bin/"
 
 # Feature Flags and Defaults
@@ -38,8 +37,6 @@ Environment Variables:
                           (default: false)
   INCLUDE_FILES           Set to true to include an extensive SBOM analysis with --components files.
                           (default: false)
-  EVIDENCE_DIR            Specify the directory containing third-party evidence files to include in SBOM.
-                          (default: evidence)
 
 Options:
   -d, --output-directory  Specify an output directory for metadata (default: /var/lib/docker/valint_output).
@@ -48,8 +45,8 @@ Options:
   --product-version       Specify the version of the product (e.g., v1.2).
   --select                Specify a built-in policy. Supported policies:
                             - scout: Uses the "scout_trivy.yaml" policy for analysis.
-  --evidence-dir          Specify a directory to create a third-party SBOM from evidence files.
-  --files                 Include files in SBOM generation if INCLUDE_FILES is enabled.
+  --input-evidence        Specify a directory to create 3rd-party evidence, format '<parser>:<path>'.
+  --detailed-sbom         FIX ME.
 
 Example:
   DEBUG_MODE=true INCLUDE_FILES=true $0 policy mongo-express:latest --rule sbom/fresh-sbom@v1 --product-key my-product --product-version v1.2
@@ -92,6 +89,9 @@ while [ $# -gt 0 ]; do
 done
 
 valint_args=()
+parsers=()
+evidence_files=()
+
 echo "TARGET $1"
 target="$1"
 shift
@@ -121,22 +121,21 @@ while [ $# -gt 0 ]; do
       product_version="$1"
       echo "Setting product version '$product_version'"
       ;;
+    --evidence)
+      shift
+      evidence_files+=("$1")
+      ;;
     --select)
       shift
-      SELCT_POLICY="$1"
-      echo "Setting Built-in Policy '$SELCT_POLICY'"
-      ;;
-    --evidence-dir)
-      shift
-      EVIDENCE_DIR="$1"
-      echo "Creating 3rd-party evidence from directory '$EVIDENCE_DIR'"
+      SELECT_POLICY="$1"
+      echo "Setting Built-in Policy '$SELECT_POLICY'"
       ;;
     --dry-run)
       echo "Dry Run Enabled"
       DRY_RUN=true
       ;;
-    --files)
-      echo "Include files in SBOM"
+    --detailed-sbom)
+      echo "Detailed SBOM: Include files components in SBOM"
       INCLUDE_FILES=true
       ;;
     *)
@@ -168,6 +167,15 @@ fi
 if [[ "$ONLY_VERIFY" != true ]]; then
   verify_flags+=("--bom")
   verify_flags+=("--provenance")
+
+  for evidence in "${evidence_files[@]}"; do
+    echo "Adding Evidence: ${evidence}"
+    verify_flags+=("--input-evidence" "${evidence}")
+  done
+fi
+
+if [[ "$ONLY_VERIFY" == true ]]; then
+  verify_flags+=("--cache.enable=false")
 fi
 
 if [[ "$INCLUDE_FILES" == true ]]; then
@@ -186,54 +194,18 @@ if [[ -n "$product_version" ]]; then
   product_flags+=("--product-version" "$product_version")
 fi
 
-if [[ -n "$SELCT_POLICY" ]]; then
+if [[ -n "$SELECT_POLICY" ]]; then
   SCRIPT_PATH=$(dirname "$0")
-  case $SELCT_POLICY in
+  case $SELECT_POLICY in
     "scout")
       policy_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
       ;;
     *)
-      policy_flags+=("--policy" "$SELCT_POLICY")
+      policy_flags+=("--policy" "$SELECT_POLICY")
       ;;
   esac
 fi
 
-if [[ -n "$SELCT_POLICY" && -n "$EVIDENCE_DIR" ]]; then
-
-  case $SELCT_POLICY in
-    "scout")
-      echo "* Running 3rd-Party Tool - Trivy Scan $target"
-      mkdir -p $EVIDENCE_DIR
-
-      # check tool exists
-      if ! [ -x "$(command -v $trivy_tool)" ]; then
-        echo "$trivy_tool not found locally, to install see 'https://aquasecurity.github.io/trivy/v0.57/getting-started/installation/'"
-        echo "Install Trivy from command line 'curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin'"
-        exit 1
-      fi
-      echo "Executing command: '$trivy_tool image --exit-code 0 --no-progress $target --output $EVIDENCE_DIR/trivy.results.sarif --format sarif'"
-      if [[ -z "$DRY_RUN" ]]; then
-        $trivy_tool image --exit-code 0 --no-progress "$target" --output "$EVIDENCE_DIR/trivy.results.sarif" --format sarif
-      fi
-      ;;
-    *)
-      echo "No extra command to run"
-      ;;
-  esac
-fi
-
-
-echo "* Adding 3rd-party evidence"
-# Hack for Evidence Creation for Dir, needs to be supported in valint verify level.
-if [[ -n "$EVIDENCE_DIR" ]]; then
-  for file in $(find "$EVIDENCE_DIR" -type f); do
-    evidence_final_flags=("${evidence_flags[@]}" "${product_flags[@]}")
-    echo "Executing command: '$tool evidence ${file} ${evidence_final_flags[*]}'"
-    if [[ -z "$DRY_RUN" ]]; then
-        $tool evidence "${file}" "${evidence_final_flags[@]}"
-    fi
-  done
-fi
 
 # Combine final_flags with the remaining arguments
 final_flags=("${valint_args[@]}" "${verify_flags[@]}" "${policy_flags[@]}" "${product_flags[@]}")
