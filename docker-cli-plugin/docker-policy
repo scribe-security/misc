@@ -20,7 +20,10 @@ INCLUDE_FILES=${INCLUDE_FILES:-false}
 DEBUG_MODE=${DEBUG_MODE:-false}
 # DRY_RUN=${DRY_RUN:-false}
 
-# Help message function
+is_command() {
+  command -v "$1" >/dev/null
+}
+
 # Help message function
 show_help() {
   cat << EOF
@@ -151,6 +154,15 @@ verify_flags=()
 evidence_flags=()
 policy_flags=()
 product_flags=()
+
+if is_command $tool; then
+  echo "Valint found in PATH"
+elif [[ -f "${scribe_default}/valint" ]]; then
+  export PATH="${scribe_default}:${PATH}"
+else
+  echo "Valint not found in PATH or default location: ${scribe_default}"
+  exit 1
+fi
 
 if [[ -z "$target" ]]; then
   echo "No target specified"

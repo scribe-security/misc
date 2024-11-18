@@ -32,8 +32,10 @@ rules:
     description: "Supply Chain Attestations: Provenance Evidence Exists"
     level: error
 
-  - uses: slsa/l2-authenticated@v1
+  - uses: slsa/l2-provenance-authenticated@v1
     description: "Supply Chain Attestations: Provenance Evidence Authenticated"
+    evidence:
+      signed: true
     level: warning
 
   - uses: images/banned-users@v1
