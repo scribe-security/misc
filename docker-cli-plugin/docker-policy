@@ -101,6 +101,11 @@ shift
 
 while [ $# -gt 0 ]; do
   case $1 in
+    -f|--file)
+      shift
+      echo "Provided Dockerfile: $1"
+      dockerfile="$1"
+      ;;
     -x|--debug)
       echo "Debug mode enabled"
       DEBUG_MODE=true
@@ -184,6 +189,10 @@ if [[ "$ONLY_VERIFY" != true ]]; then
     echo "Adding Evidence: ${evidence}"
     verify_flags+=("--input-evidence" "${evidence}")
   done
+
+  if [[ -n "$dockerfile" ]]; then
+    verify_flags+=("--input-evidence" "$dockerfile")
+  fi
 fi
 
 if [[ "$ONLY_VERIFY" == true ]]; then
