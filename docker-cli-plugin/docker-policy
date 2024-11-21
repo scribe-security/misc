@@ -48,7 +48,7 @@ Options:
   --product-version       Specify the version of the product (e.g., v1.2).
   --select                Specify a built-in policy. Supported policies:
                             - scout: Uses the "scout_trivy.yaml" policy for analysis.
-  --input-evidence        Specify a directory to create 3rd-party evidence, format '<parser>:<path>'.
+  --input        Specify a directory to create 3rd-party evidence, format '<parser>:<path>'.
   --detailed-sbom         FIX ME.
 
 Example:
@@ -187,11 +187,11 @@ if [[ "$ONLY_VERIFY" != true ]]; then
 
   for evidence in "${evidence_files[@]}"; do
     echo "Adding Evidence: ${evidence}"
-    verify_flags+=("--input-evidence" "${evidence}")
+    verify_flags+=("--input" "${evidence}")
   done
 
   if [[ -n "$dockerfile" ]]; then
-    verify_flags+=("--input-evidence" "$dockerfile")
+    verify_flags+=("--input" "file:$dockerfile")
   fi
 fi
 
