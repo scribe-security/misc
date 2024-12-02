@@ -4,10 +4,12 @@ defaults:
     signed: false
 rules:
 
-  # - uses: sarif/trivy/verify-trivy-cve-report@v1
-  #   description: "Security Vulnerabilities: Trivy CVE Report"
-  #   level: error
-
+  - uses: sarif/trivy/verify-trivy-cve-report@v1
+    description: "Severity-Based Vulnerability: Trivy CVE Report"
+    level: error
+    with:
+      severity_threshold: 5.5
+    
   - uses: sbom/complete-licenses@v1
     description: "Compliant Licenses: Complete Licenses"
     level: warning
