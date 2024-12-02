@@ -5,16 +5,38 @@ defaults:
 rules:
 
   - uses: sarif/trivy/verify-trivy-cve-report@v1
+    name: "Severity-Based Vulnerabilities (trivy)"
     description: "Severity-Based Vulnerability: Trivy CVE Report"
     level: error
     with:
       severity_threshold: 5.5
+
+  - uses: sarif/verify-semgrep-report@v1
+    name: "High-Profile Vulnerabilities (trivy)"
+    description: "High-Profile Vulnerabilities: Trivy CVE Report"
+    level: error
+    evidence:
+      tool: "Trivy Vulnerability Scanner"
+    with:
+      rule_ids:
+      - CVE-2014-0160
+      - CVE-2021-44228
+      - CVE-2023-38545
+      - CVE-2023-44487
+      - CVE-2024-3094
+      - CVE-2024-47176
+      - CVE-2024-47076
+      - CVE-2024-47175
+      - CVE-2024-47177
+
     
   - uses: sbom/complete-licenses@v1
+    name: Compliant Licenses
     description: "Compliant Licenses: Complete Licenses"
     level: warning
 
   - uses: sbom/banned-licenses@v1
+    name: "Compliant Licenses"
     description: "Compliant Licenses: No GPL Licenses"
     level: error
     with:
@@ -31,19 +53,20 @@ rules:
       - GPL-3.0-or-later
 
   - uses: sbom/evidence-exists@v1
-    description: "Supply Chain Attestations: SBOM Evidence Exists"
+    name: "Supply Chain Attestations (SBOM)"
     level: error
 
   - uses: slsa/l1-provenance-exists@v1
-    description: "Supply Chain Attestations: Provenance Evidence Exists"
+    name: "Supply Chain Attestations (Provenance)"
     level: error
 
   - uses: slsa/l2-provenance-authenticated@v1
-    description: "Supply Chain Attestations: Provenance Evidence Authenticated"
+    name: "Supply Chain Attestations (Provenance Authenticated)"
     evidence:
       signed: true
     level: warning
 
   - uses: images/banned-users@v1
-    description: "Default Non-Root User: No Root User"
+    name: "Default Non-Root User"
+    description: "Check 'root' user is not used"
     level: error
