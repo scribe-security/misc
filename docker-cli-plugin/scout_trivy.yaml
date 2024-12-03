@@ -29,12 +29,12 @@ rules:
 
     
   - uses: sbom/complete-licenses@v1
-    name: Compliant Licenses
+    name: Complete Licenses
     description: "Compliant Licenses: Complete Licenses"
     level: warning
 
   - uses: sbom/banned-licenses@v1
-    name: "Compliant Licenses"
+    name: "No GPL Licenses"
     description: "Compliant Licenses: No GPL Licenses"
     level: error
     with:
@@ -59,7 +59,7 @@ rules:
     level: error
 
   - uses: slsa/l2-provenance-authenticated@v1
-    name: "Supply Chain Attestations (Provenance Authenticated)"
+    name: "Supply Chain Attestations (Signed Provenance)"
     evidence:
       signed: true
     level: warning
