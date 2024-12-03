@@ -4,19 +4,17 @@ defaults:
     signed: false
 rules:
 
-  - uses: sarif/trivy/verify-trivy-cve-report@v1
+  - uses: sarif/trivy/verify-cve-severity@v1
     name: "Severity-Based Vulnerabilities (trivy)"
     description: "Severity-Based Vulnerability: Trivy CVE Report"
     level: error
     with:
       severity_threshold: 5.5
 
-  - uses: sarif/verify-semgrep-report@v1
+  - uses: sarif/trivy/blocklist-cve@v1
     name: "High-Profile Vulnerabilities (trivy)"
     description: "High-Profile Vulnerabilities: Trivy CVE Report"
     level: error
-    evidence:
-      tool: "Trivy Vulnerability Scanner"
     with:
       rule_ids:
       - CVE-2014-0160
