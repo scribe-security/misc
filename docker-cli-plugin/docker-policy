@@ -106,32 +106,25 @@ while [ $# -gt 0 ]; do
       dockerfile="$1"
       echo "Provided Dockerfile: $dockerfile"
       ;;
+    --file*)
+      dockerfile="${1#*=}"
+      echo "Provided Dockerfile: $dockerfile"
+      ;;
     -x|--debug)
       echo "Debug mode enabled"
       DEBUG_MODE=true
-      ;;
-    -d|--output-directory)
-      shift
-      output_directory="$1"
-      echo "Setting Evidence Output Directory '$output_directory'"
       ;;
     --verify-only)
       echo "Verify image using remote evidence only"
       ONLY_VERIFY=true
       ;;
-    --product-key)
-      shift
-      product_key="$1"
-      echo "Setting product key '$product_key'"
-      ;;
-    --product-version)
-      shift
-      product_version="$1"
-      echo "Setting product version '$product_version'"
-      ;;
     --select)
       shift
       SELECT_POLICY="$1"
+      echo "Setting Built-in Policy '$SELECT_POLICY'"
+      ;;
+    --select*)
+      SELECT_POLICY="${1#*=}"
       echo "Setting Built-in Policy '$SELECT_POLICY'"
       ;;
     --dry-run)
@@ -192,18 +185,6 @@ fi
 
 if [[ "$INCLUDE_FILES" == true ]]; then
   verify_flags+=("--components" "files")
-fi
-
-if [[ -n "$output_directory" ]]; then
-  verify_flags+=("--output-directory" "$output_directory")
-  evidence_flags+=("--output-directory" "$output_directory")
-fi
-
-if [[ -n "$product_key" ]]; then
-  product_flags+=("--product-key" "$product_key")
-fi
-if [[ -n "$product_version" ]]; then
-  product_flags+=("--product-version" "$product_version")
 fi
 
 if [[ -n "$SELECT_POLICY" ]]; then
