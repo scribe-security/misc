@@ -93,13 +93,13 @@ done
 
 valint_args=()
 parsers=()
-evidence_files=()
 
 echo "TARGET $1"
 target="$1"
 shift
 
 while [ $# -gt 0 ]; do
+  echo "Parsing ARG $1"
   case $1 in
     -f|--file)
       shift
@@ -128,10 +128,6 @@ while [ $# -gt 0 ]; do
       shift
       product_version="$1"
       echo "Setting product version '$product_version'"
-      ;;
-    --evidence)
-      shift
-      evidence_files+=("$1")
       ;;
     --select)
       shift
@@ -184,11 +180,6 @@ fi
 if [[ "$ONLY_VERIFY" != true ]]; then
   verify_flags+=("--bom")
   verify_flags+=("--provenance")
-
-  for evidence in "${evidence_files[@]}"; do
-    echo "Adding Evidence: ${evidence}"
-    verify_flags+=("--input" "${evidence}")
-  done
 
   if [[ -n "$dockerfile" ]]; then
     verify_flags+=("--base-image" "$dockerfile")
