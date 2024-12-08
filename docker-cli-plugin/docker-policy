@@ -99,7 +99,6 @@ target="$1"
 shift
 
 while [ $# -gt 0 ]; do
-  echo "Parsing ARG $1"
   case $1 in
     -f|--file)
       shift
