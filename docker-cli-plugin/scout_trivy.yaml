@@ -27,6 +27,11 @@ rules:
       - CVE-2024-47175
       - CVE-2024-47177
 
+  - uses: images/fresh-base-image@v1
+    name: "Up-to-Date Base Images"
+    level: warning
+    with:
+      max_days: 100
     
   - uses: sbom/complete-licenses@v1
     name: Complete Licenses
