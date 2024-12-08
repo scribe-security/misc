@@ -103,8 +103,8 @@ while [ $# -gt 0 ]; do
   case $1 in
     -f|--file)
       shift
-      echo "Provided Dockerfile: $1"
       dockerfile="$1"
+      echo "Provided Dockerfile: $dockerfile"
       ;;
     -x|--debug)
       echo "Debug mode enabled"
