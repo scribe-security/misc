@@ -191,7 +191,7 @@ if [[ "$ONLY_VERIFY" != true ]]; then
   done
 
   if [[ -n "$dockerfile" ]]; then
-    verify_flags+=("--input" "file:$dockerfile")
+    verify_flags+=("--base-image" "$dockerfile")
   fi
 fi
 
