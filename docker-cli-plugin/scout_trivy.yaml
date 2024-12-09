@@ -32,6 +32,13 @@ rules:
     level: warning
     with:
       max_days: 100
+
+  - uses: images/allowed-base-image@v1
+    name: "Approved Source Base Images"
+    level: error
+    with:
+      approved_sources:
+      - index.docker.io/library/node.*slim
     
   - uses: sbom/complete-licenses@v1
     name: Complete Licenses
