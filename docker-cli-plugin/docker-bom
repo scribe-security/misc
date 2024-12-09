@@ -7,7 +7,7 @@ VENDOR="Scribe security, Inc"
 SHORT_DESC="Create SBOM for target"
 LONG_DESC="Generate Software Bill Of Materials (SBOM) from container images and filesystems"
 URL="https://github.com/scribe-security/bomber"
-tool=gensbom
+tool=valint
 scribe_default="${HOME}/.scribe/bin/"
 
 if [[ "$1" == "docker-cli-plugin-metadata" ]]; then

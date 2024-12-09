@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Metadata Information
+SCHEME="0.1.0"
+VENDOR="Scribe Security, Inc"
+SHORT_DESC="Evaluate and enforce Supply-Chain policies on container images"
+LONG_DESC="Evaluate and enforce Supply-Chain policies on container images as code"
+URL="https://github.com/scribe-security/valint"
+EVIDENCE_DIR=${EVIDENCE_DIR:-"evidence"}
+
+# Tool and Path Configuration
+tool="valint"
+scribe_default="${HOME}/.scribe/bin/"
+
+# Feature Flags and Defaults
+ONLY_VERIFY=${ONLY_VERIFY:-false}
+INCLUDE_FILES=${INCLUDE_FILES:-false}
+DEBUG_MODE=${DEBUG_MODE:-false}
+# DRY_RUN=${DRY_RUN:-false}
+
+is_command() {
+  command -v "$1" >/dev/null
+}
+
+# Help message function
+show_help() {
+  cat << EOF
+Usage: $0 policy [options]
+
+This Docker CLI plugin evaluates and enforces supply-chain policies on container images.
+
+Options:
+  -h, --help              Show this help message and exit.
+  -x, --debug             Enable debug logging and increase verbosity in valint with -vv.
+
+Environment Variables:
+  ONLY_VERIFY             Set to true to perform verification without SBOM generation.
+                          (default: false)
+  INCLUDE_FILES           Set to true to include an extensive SBOM analysis with --components files.
+                          (default: false)
+
+Options:
+  -d, --output-directory  Specify an output directory for metadata (default: /var/lib/docker/valint_output).
+  --verify-only           Verify image using remote evidence only (no local evidence generation).
+  --product-key           Set a specific product key for identifying the product (e.g., for evidence or policy tracking).
+  --product-version       Specify the version of the product (e.g., v1.2).
+  --select                Specify a built-in policy. Supported policies:
+                            - scout: Uses the "scout_trivy.yaml" policy for analysis.
+  --input        Specify a directory to create 3rd-party evidence, format '<parser>:<path>'.
+  --detailed-sbom         FIX ME.
+
+Example:
+  DEBUG_MODE=true INCLUDE_FILES=true $0 policy mongo-express:latest --rule sbom/fresh-sbom@v1 --product-key my-product --product-version v1.2
+
+EOF
+}
+# Docker Plugin Metadata Command
+if [[ "$1" == "docker-cli-plugin-metadata" ]]; then
+  cat << EOF
+{
+  "SchemaVersion": "${SCHEME}",
+  "Vendor": "${VENDOR}",
+  "URL": "${URL}",
+  "ShortDescription": "${SHORT_DESC}"
+}
+EOF
+  exit
+fi
+
+# Save docker arguments, i.e., arguments before "policy"
+while [ $# -gt 0 ]; do
+  if [ "$1" = "policy" ]; then
+    shift
+    break
+  fi
+
+  case $1 in
+    -h|--help)
+      show_help
+      exit
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+
+  DOCKER_ARGS="$DOCKER_ARGS $1"
+  shift
+done
+
+valint_args=()
+parsers=()
+
+echo "TARGET $1"
+target="$1"
+shift
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    -f|--file)
+      shift
+      dockerfile="$1"
+      echo "Provided Dockerfile: $dockerfile"
+      ;;
+    --file*)
+      dockerfile="${1#*=}"
+      echo "Provided Dockerfile: $dockerfile"
+      ;;
+    -x|--debug)
+      echo "Debug mode enabled"
+      DEBUG_MODE=true
+      ;;
+    --verify-only)
+      echo "Verify image using remote evidence only"
+      ONLY_VERIFY=true
+      ;;
+    --select)
+      shift
+      SELECT_POLICY="$1"
+      echo "Setting Built-in Policy '$SELECT_POLICY'"
+      ;;
+    --select*)
+      SELECT_POLICY="${1#*=}"
+      echo "Setting Built-in Policy '$SELECT_POLICY'"
+      ;;
+    --dry-run)
+      echo "Dry Run Enabled"
+      DRY_RUN=true
+      ;;
+    --detailed-sbom)
+      echo "Detailed SBOM: Include files components in SBOM"
+      INCLUDE_FILES=true
+      ;;
+    *)
+      valint_args+=("$1")
+      ;;
+  esac
+
+  shift
+done
+
+# Enable debug logging if DEBUG_MODE is true
+verify_flags=()
+evidence_flags=()
+policy_flags=()
+product_flags=()
+
+if is_command $tool; then
+  echo "Valint found in PATH"
+elif [[ -f "${scribe_default}/valint" ]]; then
+  export PATH="${scribe_default}:${PATH}"
+else
+  echo "Valint not found in PATH or default location: ${scribe_default}"
+  exit 1
+fi
+
+if [[ -z "$target" ]]; then
+  echo "No target specified"
+  exit 1
+fi
+
+if [[ "$DEBUG_MODE" == true ]]; then
+  set -x
+  verify_flags+=("-vv")
+  evidence_flags+=("-vv")
+fi
+
+# Construct Flags Array Based on Feature Toggles
+if [[ "$ONLY_VERIFY" != true ]]; then
+  verify_flags+=("--bom")
+  verify_flags+=("--provenance")
+
+  if [[ -n "$dockerfile" ]]; then
+    verify_flags+=("--base-image" "$dockerfile")
+  fi
+fi
+
+if [[ "$ONLY_VERIFY" == true ]]; then
+  verify_flags+=("--cache.enable=false")
+fi
+
+if [[ "$INCLUDE_FILES" == true ]]; then
+  verify_flags+=("--components" "files")
+fi
+
+if [[ -n "$SELECT_POLICY" ]]; then
+  SCRIPT_PATH=$(dirname "$0")
+  case $SELECT_POLICY in
+    "scout")
+      policy_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
+      ;;
+    *)
+      policy_flags+=("--policy" "$SELECT_POLICY")
+      ;;
+  esac
+fi
+
+
+# Combine final_flags with the remaining arguments
+final_flags=("${valint_args[@]}" "${verify_flags[@]}" "${policy_flags[@]}" "${product_flags[@]}")
+
+# Log and Execute the Command
+echo "Executing command: '$tool verify $target ${final_flags[*]}'"
+# Uncomment the following line to run the actual command
+if [[ -z "$DRY_RUN" ]]; then
+  $tool verify "$target" "${final_flags[@]}"
+fi
