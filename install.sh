@@ -402,12 +402,14 @@ EOF
 }
 
 parse_args() {
-  while getopts "t:b:dh?xD" arg; do
+  while getopts "U:R:t:b:dh?xD" arg; do
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
       h | \?) usage;;
       t) tools="${tools} ${OPTARG}";;
+      U) download_url="$OPTARG" ;;
+      R) download_repo="$OPTARG" ;;
       D) ENV="dev";;
       x) set -x ;;
     esac
