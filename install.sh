@@ -426,6 +426,14 @@ parse_args() {
     fi
   fi
 
+  if [ ! -z "$VALINT_DOWNLOAD_URL" ]; then
+    download_url="${VALINT_DOWNLOAD_URL}"
+  fi
+
+  if [ ! -z "$VALINT_DOWNLOAD_REPO" ]; then
+    download_repo="${VALINT_DOWNLOAD_REPO}"
+  fi
+
   if [ ! -z "$SCRIBE_DEBUG" ]; then
     log_set_priority 10
   fi
