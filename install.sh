@@ -13,7 +13,7 @@ get_latest_artifact() {
 
   log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
-  if [ -n "${ENV}" ] && echo "${ENV}" | tr '[:upper:]' '[:lower:]' | grep -Eq '^(dev|development)$'; then
+  if [ -n "${ENV}" ] && echo "${ENV}" | tr '[:upper:]' '[:lower:]' | grep -Eq '^(dev|development|feature)$'; then
     subpath=${ENV}/${name}/${os}/${arch}
     log_info "Using dev artifacts, subpath='${subpath}', ENV=$ENV"
   else
@@ -47,7 +47,7 @@ get_artifact() {
   
   log_debug "get_artifact(url=${download_url}, repo=${download_repo}, name=${name}, os=${os}, arch=${arch}, version=${version:-latest}, format=${format})"
 
-  if [ -n "${ENV}" ] && echo "${ENV}" | tr '[:upper:]' '[:lower:]' | grep -Eq '^(dev|development)$'; then
+  if [ -n "${ENV}" ] && echo "${ENV}" | tr '[:upper:]' '[:lower:]' | grep -Eq '^(dev|development|feature)$'; then
     subpath=${ENV}/${name}/${os}/${arch}/${version}
     log_info "Using dev artifacts, subpath='${subpath}', ENV=$ENV"
   else
@@ -402,7 +402,7 @@ EOF
 }
 
 parse_args() {
-  while getopts "U:R:t:b:dh?xD" arg; do
+  while getopts "U:R:t:b:dh?xDxF" arg; do
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
@@ -411,6 +411,7 @@ parse_args() {
       U) download_url="$OPTARG" ;;
       R) download_repo="$OPTARG" ;;
       D) ENV="dev";;
+      F) ENV="feature";;
       x) set -x ;;
     esac
   done
