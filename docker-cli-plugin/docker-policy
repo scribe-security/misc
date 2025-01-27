@@ -24,6 +24,11 @@ is_command() {
   command -v "$1" >/dev/null
 }
 
+echo_log() {
+  echo -e "$@" 1>&2
+}
+
+
 # Help message function
 show_help() {
   cat << EOF
@@ -94,44 +99,53 @@ done
 valint_args=()
 parsers=()
 
-echo "TARGET $1"
-target="$1"
-shift
+# Find first non-flag argument as the target
+target=""
+while [ $# -gt 0 ]; do
+  if [[ "$1" != -* ]]; then
+    target="$1"
+    shift
+    break
+  fi
+  shift
+done
+
+echo_log "Valint Docker Policy Evaluation of '$target'"
 
 while [ $# -gt 0 ]; do
   case $1 in
     -f|--file)
       shift
       dockerfile="$1"
-      echo "Provided Dockerfile: $dockerfile"
+      echo_log "Provided Dockerfile: $dockerfile"
       ;;
     --file*)
       dockerfile="${1#*=}"
-      echo "Provided Dockerfile: $dockerfile"
+      echo_log "Provided Dockerfile: $dockerfile"
       ;;
     -x|--debug)
-      echo "Debug mode enabled"
+      echo_log "Debug mode enabled"
       DEBUG_MODE=true
       ;;
     --verify-only)
-      echo "Verify image using remote evidence only"
+      echo_log "Verify image using remote evidence only"
       ONLY_VERIFY=true
       ;;
     --select)
       shift
       SELECT_POLICY="$1"
-      echo "Setting Built-in Policy '$SELECT_POLICY'"
+      echo_log "Setting Built-in Policy '$SELECT_POLICY'"
       ;;
     --select*)
       SELECT_POLICY="${1#*=}"
-      echo "Setting Built-in Policy '$SELECT_POLICY'"
+      echo_log "Setting Built-in Policy '$SELECT_POLICY'"
       ;;
     --dry-run)
-      echo "Dry Run Enabled"
+      echo_log "Dry Run Enabled"
       DRY_RUN=true
       ;;
     --detailed-sbom)
-      echo "Detailed SBOM: Include files components in SBOM"
+      echo_log "Detailed SBOM: Include files components in SBOM"
       INCLUDE_FILES=true
       ;;
     *)
@@ -149,16 +163,16 @@ policy_flags=()
 product_flags=()
 
 if is_command $tool; then
-  echo "Valint found in PATH"
+  echo_log "Valint found in PATH"
 elif [[ -f "${scribe_default}/valint" ]]; then
   export PATH="${scribe_default}:${PATH}"
 else
-  echo "Valint not found in PATH or default location: ${scribe_default}"
+  echo_log "Valint not found in PATH or default location: ${scribe_default}"
   exit 1
 fi
 
 if [[ -z "$target" ]]; then
-  echo "No target specified"
+  echo_log "No target specified"
   exit 1
 fi
 
@@ -186,24 +200,37 @@ if [[ "$INCLUDE_FILES" == true ]]; then
   verify_flags+=("--components" "files")
 fi
 
-if [[ -n "$SELECT_POLICY" ]]; then
+
+SCRIPT_PATH=$(dirname "$0")
+
+# if empty assume "."
+if [[ -z "$SCRIPT_PATH" ]]; then
+  SCRIPT_PATH="."
+else
   SCRIPT_PATH=$(dirname "$0")
-  case $SELECT_POLICY in
-    "scout")
-      policy_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
-      ;;
-    *)
-      policy_flags+=("--policy" "$SELECT_POLICY")
-      ;;
-  esac
 fi
 
+echo_log "script $SELECT_POLICY"
+
+echo_log "script path: $SCRIPT_PATH"
+
+case "$SELECT_POLICY" in
+  "scout")
+    policy_flags+=("--policy" "$SCRIPT_PATH/scout_trivy.yaml")
+    ;;
+  "scribe")
+    policy_flags+=("--policy" "$SCRIPT_PATH/scribe-default.yaml")
+    ;;
+  ""|*)
+    policy_flags+=("--policy" "$SCRIPT_PATH/scribe-default.yaml")
+    ;;
+esac
 
 # Combine final_flags with the remaining arguments
 final_flags=("${valint_args[@]}" "${verify_flags[@]}" "${policy_flags[@]}" "${product_flags[@]}")
 
 # Log and Execute the Command
-echo "Executing command: '$tool verify $target ${final_flags[*]}'"
+echo_log "Executing command: '$tool verify $target ${final_flags[*]}'"
 # Uncomment the following line to run the actual command
 if [[ -z "$DRY_RUN" ]]; then
   $tool verify "$target" "${final_flags[@]}"

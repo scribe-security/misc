@@ -5,48 +5,8 @@ is_command() {
 }
 
 
-http_download_curl() {
-  local_file=$1
-  source_url=$2
-  header=$3
-  if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
-  else
-    code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
-  fi
-  if [ "$code" != "200" ]; then
-    log_debug "http_download_curl received HTTP status $code"
-    return 1
-  fi
-  return 0
-}
-
-http_download_wget() {
-  local_file=$1
-  source_url=$2
-  header=$3
-  if [ -z "$header" ]; then
-    wget -q -O "$local_file" "$source_url"
-  else
-    wget -q --header "$header" -O "$local_file" "$source_url"
-  fi
-}
-
-http_download() {
-  log_debug "http_download $2"
-  if is_command curl; then
-    http_download_curl "$@"
-    return
-  elif is_command wget; then
-    http_download_wget "$@"
-    return
-  fi
-  log_crit "http_download unable to find wget or curl"
-  return 1
-}
-
 echoerr() {
-  echo -n "$@\n" 1>&2
+  echo -e "$@" 1>&2
 }
 
 log_prefix() {
@@ -101,6 +61,48 @@ log_crit() {
   echoerr "$(log_prefix)" "$(log_tag 2)" "$@"
 }
 
+
+
+http_download_curl() {
+  local_file=$1
+  source_url=$2
+  header=$3
+  if [ -z "$header" ]; then
+    code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
+  else
+    code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
+  fi
+  if [ "$code" != "200" ]; then
+    log_debug "http_download_curl received HTTP status $code"
+    return 1
+  fi
+  return 0
+}
+
+http_download_wget() {
+  local_file=$1
+  source_url=$2
+  header=$3
+  if [ -z "$header" ]; then
+    wget -q -O "$local_file" "$source_url"
+  else
+    wget -q --header "$header" -O "$local_file" "$source_url"
+  fi
+}
+
+http_download() {
+  log_debug "http_download $2"
+  if is_command curl; then
+    http_download_curl "$@"
+    return
+  elif is_command wget; then
+    http_download_wget "$@"
+    return
+  fi
+  log_crit "http_download unable to find wget or curl"
+  return 1
+}
+
 usage() {
   this="install.sh"
   cat<<EOF
@@ -115,8 +117,11 @@ EOF
   exit 2
 }
 
+# Set SET_ALIAS default
+SET_ALIAS=false
+
 parse_args() {
-  while getopts "b:t:b:p:dh?xD" arg; do
+  while getopts "b:t:b:p:dh?xDxA" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
@@ -124,6 +129,7 @@ parse_args() {
       t) tools="${tools} ${OPTARG}";;
       b) branch="$OPTARG";base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}" ;;
       x) set -x ;;
+      A) SET_ALIAS=true;;
     esac
   done
   if [ -z "$tools" ]; then
@@ -135,12 +141,13 @@ parse_args() {
 
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
-supported_tools="valint"
-valint_plugins="docker-policy"
-builtin_policies="scout_trivy.yaml"
+supported_tools=("docker-policy" "docker-policy-hook")
+
+builtin_policies="scribe-default.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
-tools=""
+tools=("docker-policy" "docker-policy-hook")
+
 parse_args "$@"
 export PATH="${scribe_default}:$PATH"
 
@@ -186,9 +193,12 @@ log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
 for tool in ${tools}; do
     case "$tool" in
-      valint)  
-        install_plugin valint "${plugin_dir}" "${valint_plugins}"
+      "docker-policy")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
         install_policies "${plugin_dir}" "${builtin_policies}"
+      ;;
+      "docker-policy-hook")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
       ;;
     esac
 done
