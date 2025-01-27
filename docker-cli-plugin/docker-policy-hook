@@ -165,7 +165,7 @@ parse_args() {
 
 # Main command handling
 cmd="$*"
-echo_log "Running command: $cmd"
+echo_log "Scribe Hook Running command: $cmd"
 
 # Execute the original docker command
 if [[ "$1" == "push" ]]; then

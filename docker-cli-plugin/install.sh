@@ -218,6 +218,8 @@ setup_docker_alias() {
     # Set alias for current session
     alias docker="${hook_path}"
     log_info "Alias set for current session. Please source your shell's rc file or start a new session."
+    type docker
+    alias
 }
 
 log_info "Installer - Scribe docker cli plugins"
@@ -231,8 +233,10 @@ for tool in $tools; do
       "docker-policy-hook")
         install_plugin "${tool}" "${plugin_dir}" "${tool}"
         if [ "$SET_ALIAS" = true ]; then
+            log_info "Setting docker alias"
             setup_docker_alias "${plugin_dir}"
         fi
       ;;
     esac
 done
+set +x
