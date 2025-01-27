@@ -213,7 +213,6 @@ if [[ "$1" == "push" ]]; then
 elif [[ "$1" == "build" ]]; then
   # Store Dockerfile mapping
   image_tag=$(get_image_tag "$@")
-  echo "############## IMAGE TAG" "$image_tag"
   dockerfile=$(get_dockerfile_path "$@")
   echo_log "Mapping $image_tag to $dockerfile"
   store_dockerfile_mapping "$image_tag" "$dockerfile"
