@@ -141,12 +141,12 @@ parse_args() {
 
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
-supported_tools=("docker-policy" "docker-policy-hook")
+supported_tools="docker-policy docker-policy-hook"
 
 builtin_policies="scribe-default.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
-tools=("docker-policy" "docker-policy-hook")
+tools="docker-policy docker-policy-hook"
 
 parse_args "$@"
 export PATH="${scribe_default}:$PATH"
@@ -191,7 +191,7 @@ install_policies() {
 
 log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
-for tool in ${tools}; do
+for tool in $tools; do
     case "$tool" in
       "docker-policy")
         install_plugin "${tool}" "${plugin_dir}" "${tool}"
