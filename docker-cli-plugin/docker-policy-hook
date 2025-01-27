@@ -6,7 +6,7 @@
 set -e
 
 # Setup persistent storage
-DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/docker-policy"
+DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/docker-policy"
 DOCKERFILE_MAP="${DOCKER_POLICY_DIR}/dockerfile-map"
 mkdir -p "$DOCKER_POLICY_DIR"
 touch "$DOCKERFILE_MAP"
@@ -16,17 +16,32 @@ echo_log() {
   echo -e "$@" 1>&2
 }
 
+if $DEBUG; then
+  set -x
+fi
+
 # Function to store Dockerfile mapping
 store_dockerfile_mapping() {
-  local image="$1"
-  local dockerfile="$2"
-  echo "$image:$dockerfile" >> "$DOCKERFILE_MAP"
+    local image="$1"
+    local dockerfile="$2"
+
+    # Get the full path of the Dockerfile
+    local full_dockerfile_path="$(realpath "$dockerfile")"
+
+    # Check if the mapping already exists
+    if ! grep -q "^$image|$full_dockerfile_path$" "$DOCKERFILE_MAP"; then
+        echo "$image|$full_dockerfile_path" >> "$DOCKERFILE_MAP"
+    else
+        echo_log "Mapping for $image to $full_dockerfile_path already exists. Skipping."
+    fi
 }
 
 # Function to get Dockerfile mapping
 get_dockerfile_mapping() {
-  local image="$1"
-  grep "^$image:" "$DOCKERFILE_MAP" 2>/dev/null | tail -n1 | cut -d':' -f2-
+    local image="$1"
+    # Use the pipe as the separator
+    dockerfile=$(grep "^$image|" "$DOCKERFILE_MAP" | cut -d'|' -f2-)
+    echo "$dockerfile"
 }
 
 # Function to cleanup old mappings (keep last 1000 entries)
@@ -40,20 +55,19 @@ cleanup_dockerfile_map() {
 
 # Function to get image tag from build command
 get_image_tag() {
-  local args=("$@")
-  local prev=""
-  
-  for arg in "${args[@]}"; do
-    if [ "$prev" = "-t" ] || [ "$prev" = "--tag" ]; then
-      echo "${arg%%:*}" # Remove tag if present
-      return
-    fi
-    if [[ "$arg" == --tag=* ]]; then
-      echo "${arg#--tag=}" # Remove --tag= prefix
-      return
-    fi
-    prev="$arg"
-  done
+    local args=("$@")
+    local prev=""
+
+    for arg in "${args[@]}"; do
+        if [ "$prev" = "-t" ] || [ "$prev" = "--tag" ]; then
+            echo "$arg"  # Return the tag directly
+            return
+        fi
+        prev="$arg"
+    done
+
+    # If no tag was found, return a default
+    echo "latest"  # Default to latest if no tag is specified
 }
 
 # Function to get Dockerfile path from build command
@@ -183,7 +197,7 @@ if [[ "$1" == "push" ]]; then
     # Run policy check after successful push with Dockerfile if available
     if [ -n "$dockerfile" ] && [ -f "$dockerfile" ]; then
       echo_log "Using Dockerfile: $dockerfile"
-      command docker policy -f "$dockerfile" "$image"
+      command docker policy  "$image" -f "$dockerfile"
     else
       command docker policy "$image"
     fi
@@ -196,40 +210,35 @@ if [[ "$1" == "push" ]]; then
   
   exit $exit_code
   
-elif [[ "$1" == "build" ]] && [ "$AUTO_LABEL" = true ]; then
-  # Get any available labels
-  label_args=($(get_label_args))
+elif [[ "$1" == "build" ]]; then
+  # Store Dockerfile mapping
+  image_tag=$(get_image_tag "$@")
+  echo "############## IMAGE TAG" "$image_tag"
+  dockerfile=$(get_dockerfile_path "$@")
+  echo_log "Mapping $image_tag to $dockerfile"
+  store_dockerfile_mapping "$image_tag" "$dockerfile"
+  cleanup_dockerfile_map
   
-  if [ ${#label_args[@]} -gt 0 ]; then
-    echo_log "Adding labels for policy compliance"
-    [ "$DEBUG" = true ] && echo_log "Labels: ${label_args[*]}"
+  if [ "$AUTO_LABEL" = true ]; then
+    # Get any available labels
+    label_args=($(get_label_args))
     
-    # Store Dockerfile mapping before running build
-    image_tag=$(get_image_tag "$@")
-    if [ -n "$image_tag" ]; then
-      dockerfile=$(get_dockerfile_path "$@")
-      [ "$DEBUG" = true ] && echo_log "Mapping $image_tag to $dockerfile"
-      store_dockerfile_mapping "$image_tag" "$dockerfile"
-      cleanup_dockerfile_map
+    if [ ${#label_args[@]} -gt 0 ]; then
+      echo_log "Adding labels for policy compliance"
+      [ "$DEBUG" = true ] && echo_log "Labels: ${label_args[*]}"
     fi
     
-    # Skip 'build' command and pass it back with labels
+    # Proceed to shift and build
     shift
     command docker build "${label_args[@]}" "$@"
     exit $?
   else
-    # Store Dockerfile mapping before running build
-    image_tag=$(get_image_tag "$@")
-    if [ -n "$image_tag" ]; then
-      dockerfile=$(get_dockerfile_path "$@")
-      [ "$DEBUG" = true ] && echo_log "Mapping $image_tag to $dockerfile"
-      store_dockerfile_mapping "$image_tag" "$dockerfile"
-      cleanup_dockerfile_map
-    fi
-    
-    command docker "$@"
+    # Proceed to shift and build
+    shift
+    command docker build "$@"
     exit $?
   fi
+  
 else
   # For non-push commands, just pass through to docker
   command docker "$@"
