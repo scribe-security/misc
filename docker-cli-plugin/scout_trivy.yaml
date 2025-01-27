@@ -1,0 +1,82 @@
+name: "Docker-Scout-Trivy"
+defaults:
+  evidence:
+    signed: false
+rules:
+
+  - uses: sarif/trivy/verify-cve-severity@v1
+    name: "Severity-Based Vulnerabilities (trivy)"
+    description: "Severity-Based Vulnerability: Trivy CVE Report"
+    level: error
+    with:
+      severity_threshold: 5.5
+
+  - uses: sarif/trivy/blocklist-cve@v1
+    name: "High-Profile Vulnerabilities (trivy)"
+    description: "High-Profile Vulnerabilities: Trivy CVE Report"
+    level: error
+    with:
+      rule_ids:
+      - CVE-2014-0160
+      - CVE-2021-44228
+      - CVE-2023-38545
+      - CVE-2023-44487
+      - CVE-2024-3094
+      - CVE-2024-47176
+      - CVE-2024-47076
+      - CVE-2024-47175
+      - CVE-2024-47177
+
+  - uses: images/fresh-base-image@v1
+    name: "Up-to-Date Base Images"
+    level: warning
+    with:
+      max_days: 100
+
+  - uses: images/allowed-base-image@v1
+    name: "Approved Source Base Images"
+    level: error
+    with:
+      approved_sources:
+      - index.docker.io/library/node.*slim
+    
+  - uses: sbom/complete-licenses@v1
+    name: Complete Licenses
+    description: "Compliant Licenses: Complete Licenses"
+    level: warning
+
+  - uses: sbom/banned-licenses@v1
+    name: "No GPL Licenses"
+    description: "Compliant Licenses: No GPL Licenses"
+    level: error
+    with:
+      banned-licenses: 
+      - AGPL-1.0-only
+      - AGPL-1.0-or-later
+      - AGPL-3.0-only
+      - AGPL-3.0-or-later
+      - GPL-1.0-only
+      - GPL-1.0-or-later
+      - GPL-2.0-only
+      - GPL-2.0-or-later
+      - GPL-3.0-only
+      - GPL-3.0-or-later
+
+  - uses: sbom/evidence-exists@v1
+    name: "Supply Chain Attestations (SBOM)"
+    level: error
+
+  - uses: slsa/l1-provenance-exists@v1
+    name: "Supply Chain Attestations (Provenance)"
+    level: error
+
+  - uses: slsa/l2-provenance-authenticated@v1
+    name: "Supply Chain Attestations (Signed Provenance)"
+    evidence:
+      signed: true
+    level: warning
+
+  - uses: images/banned-users@v1
+    name: "Default Non-Root User"
+    description: "Check 'root' user is not used"
+    level: error
