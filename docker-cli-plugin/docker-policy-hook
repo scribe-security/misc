@@ -6,7 +6,7 @@
 set -e
 
 # Setup persistent storage
-DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-~/.cache}/docker-policy"
+DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/docker-policy"
 DOCKERFILE_MAP="${DOCKER_POLICY_DIR}/dockerfile-map"
 mkdir -p "$DOCKER_POLICY_DIR"
 touch "$DOCKERFILE_MAP"
