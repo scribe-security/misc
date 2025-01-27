@@ -121,7 +121,7 @@ EOF
 SET_ALIAS=false
 
 parse_args() {
-  while getopts "b:t:b:p:dh?xDxA" arg; do
+  while getopts "t:b:p:dh?xDxA" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
