@@ -204,16 +204,16 @@ setup_docker_alias() {
         return 1
     fi
     
-    # # Add to shell rc file if it exists
-    # for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-    #     if [ -f "$rc" ]; then
-    #         # Remove any existing docker alias
-    #         sed -i '/alias docker=/d' "$rc"
-    #         # Add new alias with full path
-    #         echo "alias docker=\"${hook_path}\"" >> "$rc"
-    #         log_info "Added alias to $rc"
-    #     fi
-    # done
+    # Add to shell rc file if it exists
+    for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
+        if [ -f "$rc" ]; then
+            # Remove any existing docker alias
+            sed -i '/alias docker=/d' "$rc"
+            # Add new alias with full path
+            echo "alias docker=\"${hook_path}\"" >> "$rc"
+            log_info "Added alias to $rc"
+        fi
+    done
     
     # Set alias for current session
     alias docker="${hook_path}"
