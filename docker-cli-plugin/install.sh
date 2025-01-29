@@ -143,7 +143,7 @@ parse_args() {
 
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
-supported_tools="docker-policy docker-policy-hook"
+supported_tools="docker-policy docker-policy-hook context"
 
 builtin_policies="scribe-default.yaml"
 branch="master"
@@ -267,6 +267,8 @@ for tool in $tools; do
             setup_docker_link "${plugin_dir}"
         fi
       ;;
+      "context")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
     esac
 done
 set +x
