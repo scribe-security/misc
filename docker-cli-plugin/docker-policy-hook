@@ -105,6 +105,7 @@ get_dockerfile_path() {
 
 # Get the image name used after "push" or build with "--push"
 # e.g., docker build --push -t my-image .
+# end case docker buildx build -- 
 get_first_non_flag_after() {
   local cmd="$1"
   local found_cmd=false
@@ -338,6 +339,7 @@ main() {
 
   else
     # For all other commands, just pass them along
+    echo "No hook for command: $1"
     command "$docker_command" "$@"
     exit $?
   fi
