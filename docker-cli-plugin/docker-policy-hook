@@ -100,7 +100,7 @@ get_dockerfile_path() {
 get_first_non_flag_after() {
   local cmd="$1"
   local found_cmd=false
-  shift
+  shift  # Move past the command argument
   
   while [ $# -gt 0 ]; do
     if [ "$found_cmd" = true ] && [[ "$1" != -* ]]; then
@@ -110,7 +110,49 @@ get_first_non_flag_after() {
     if [ "$1" = "$cmd" ]; then
       found_cmd=true
     fi
-    shift
+    shift  # Move to the next argument
+  done
+}
+
+# Read the argument find the value after -t or --tag
+get_tag_flag_value() {
+  shift  # Move past the command argument
+  
+  while [ $# -gt 0 ]; do
+    if [[ "$1" == "-t" || "$1" == "--tag" ]]; then
+      if [[ "$1" == *=* ]]; then
+        echo "${1#*=}"
+        return
+      else
+        shift  # Move to the value after -t or --tag
+        if [ -n "$1" ]; then
+          echo "$1"
+          return
+        fi
+      fi
+    fi
+    shift  # Move to the next argument
+  done
+}
+
+# Read Dockerfile -f --file flag value
+get_file_flag_value() {
+  shift  # Move past the command argument
+  
+  while [ $# -gt 0 ]; do
+    if [[ "$1" == "-f" || "$1" == "--file" ]]; then
+      if [[ "$1" == *=* ]]; then
+        echo "${1#*=}"
+        return
+      else
+        shift  # Move to the value after -f or --file
+        if [ -n "$1" ]; then
+          echo "$1"
+          return
+        fi
+      fi
+    fi
+    shift  # Move to the next argument
   done
 }
 
@@ -138,8 +180,8 @@ get_label_args() {
 }
 
 # Default values
-AUTO_LABEL=false
-DEBUG=false
+AUTO_LABEL=${AUTO_LABEL:-false}
+DEBUG=${DEBUG:-false}
 
 usage() {
   cat << EOF
@@ -177,47 +219,59 @@ parse_args() {
   echo "$@"
 }
 
+
+
+# Run Docker policy check
+docker_policy() {
+  local image="$1"
+  local dockerfile="$2"
+  
+  if [ -n "$dockerfile" ] && [ -f "$dockerfile" ]; then
+    echo_log "Running policy check on $image with Dockerfile: $dockerfile"
+    command docker policy "$image" -f "$dockerfile"
+  else
+    echo_log "Running policy check on $image"
+    command docker policy "$image"
+  fi
+}
+
+# Look for docker CLI in path excluding the current pwd.
+# Function to find the original docker binary
+find_docker_binary() {
+  local docker_path
+  local current_dir=$(pwd)
+
+  # Modify PATH to exclude the current directory and /usr/local/bin
+  local modified_path
+  modified_path=$(echo "$PATH" \
+    | sed -e "s|:$current_dir||" \
+          -e "s|$current_dir:||" \
+          -e "s|$current_dir||" \
+          -e "s|/usr/local/bin:||" \
+          -e "s|:/usr/local/bin||"
+  )
+
+  # Find the docker binary in the modified PATH
+  docker_path=$(PATH="$modified_path" which docker)
+
+  echo "$docker_path"
+}
+
+docker_command=$(find_docker_binary)
 # Main command handling
 cmd="$*"
-echo_log "Scribe Hook Running command: $cmd"
+echo_log "Scribe Hook: $cmd"
+echo_log "Bin Hook: $docker_command"
 
-# Execute the original docker command
-if [[ "$1" == "push" ]]; then
-  # Get the image being pushed
-  image=$(get_first_non_flag_after "push" "$@")
-  dockerfile=$(get_dockerfile_mapping "$image")
-  
-  # Run the original push command
-  command docker "$@"
-  exit_code=$?
-  
-  # Only run policy check if push succeeded
-  if [ $exit_code -eq 0 ]; then
-    echo_log "Push successful, running policy check on: $image"
-    # Run policy check after successful push with Dockerfile if available
-    if [ -n "$dockerfile" ] && [ -f "$dockerfile" ]; then
-      echo_log "Using Dockerfile: $dockerfile"
-      command docker policy  "$image" -f "$dockerfile"
-    else
-      command docker policy "$image"
-    fi
-    policy_code=$?
-    # Use policy check exit code if it failed
-    [ $policy_code -ne 0 ] && exit_code=$policy_code
-  else
-    echo_log "Push failed, skipping policy check"
-  fi
-  
-  exit $exit_code
-  
-elif [[ "$1" == "build" ]]; then
+
+if [[ "$1" == "build" ]]; then
   # Store Dockerfile mapping
   image_tag=$(get_image_tag "$@")
   dockerfile=$(get_dockerfile_path "$@")
   echo_log "Mapping $image_tag to $dockerfile"
   store_dockerfile_mapping "$image_tag" "$dockerfile"
   cleanup_dockerfile_map
-  
+  exit_code=0
   if [ "$AUTO_LABEL" = true ]; then
     # Get any available labels
     label_args=($(get_label_args))
@@ -229,17 +283,45 @@ elif [[ "$1" == "build" ]]; then
     
     # Proceed to shift and build
     shift
-    command docker build "${label_args[@]}" "$@"
-    exit $?
+    command $docker_command build "${label_args[@]}" "$@"
+    exit_code=$?
   else
     # Proceed to shift and build
     shift
-    command docker build "$@"
-    exit $?
+    command $docker_command build "$@"
+    exit_code=$?
   fi
+
+  # If command exit code 0 and includes "--push" flag, run policy check after build
+  if [ $exit_code -eq 0 ] && [[ " $* " == *" --push "* ]]; then
+    # Get the image being pushed
+    image=$(get_tag_flag_value "$@")
+    dockerfile=$(get_file_flag_value "$@")
+    docker_policy "$image" "$dockerfile"
+  fi
+
+  exit $exit_code
+elif [[ "$1" == "push" ]]; then
+
+  # Run the original push command
+  command $docker_command "$@"
+  exit_code=$?
+  
+  # Only run policy check if push succeeded
+  if [ $exit_code -eq 0 ]; then
+    image=$(get_first_non_flag_after "$@")
+    dockerfile=$(get_dockerfile_mapping "$image")
+    echo_log "Push successful, running policy check on: $image"
+    # Run policy check after successful push with Dockerfile if available
+    docker_policy "$image" "$dockerfile"
+  else
+    echo_log "Push failed, skipping policy check"
+  fi
+  
+  exit $exit_code
   
 else
   # For non-push commands, just pass through to docker
-  command docker "$@"
+  command $docker_command "$@"
   exit $?
 fi

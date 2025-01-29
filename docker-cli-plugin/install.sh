@@ -118,10 +118,11 @@ EOF
 }
 
 # Set SET_ALIAS default
-SET_ALIAS=false
+SET_ALIAS=${SET_ALIAS:-false}
+SET_EXE_LINK=${SET_EXE_LINK:-false}
 
 parse_args() {
-  while getopts "t:b:p:dh?xDxA" arg; do
+  while getopts "t:b:p:dh?xDxAxL" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
@@ -130,6 +131,7 @@ parse_args() {
       b) branch="$OPTARG";base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}" ;;
       x) set -x ;;
       A) SET_ALIAS=true;;
+      L) SET_EXE_LINK=true;;
     esac
   done
   if [ -z "$tools" ]; then
@@ -220,6 +222,29 @@ setup_docker_alias() {
     log_info "Alias set for current session. Please source your shell's rc file or start a new session."
     type docker
     alias
+}
+
+# Default location /usr/local/bin
+setup_docker_link() {
+    local plugin_path="$1"
+    local hook_path="${plugin_path}/docker-policy-hook"
+    local link_path="/usr/local/bin/docker"
+    
+    if [ ! -f "$hook_path" ]; then
+        log_info "Error: docker-policy-hook not found at $hook_path"
+        return 1
+    fi
+    
+    # Remove existing link
+    if [ -L "$link_path" ]; then
+        rm "$link_path"
+        log_info "Removed existing link at $link_path"
+    fi
+    
+    # Create new link
+    ln -s "$hook_path" "$link_path"
+    log_info "Created link at $link_path"
+
 }
 
 log_info "Installer - Scribe docker cli plugins"
