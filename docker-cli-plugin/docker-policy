@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+# set -e
 
 # Metadata Information
 SCHEME="0.1.0"
@@ -17,7 +17,7 @@ scribe_default="${HOME}/.scribe/bin/"
 # Feature Flags and Defaults
 ONLY_VERIFY=${ONLY_VERIFY:-false}
 INCLUDE_FILES=${INCLUDE_FILES:-false}
-DEBUG_MODE=${DEBUG_MODE:-false}
+DEBUG=${DEBUG:-false}
 # DRY_RUN=${DRY_RUN:-false}
 
 is_command() {
@@ -57,7 +57,7 @@ Options:
   --detailed-sbom         FIX ME.
 
 Example:
-  DEBUG_MODE=true INCLUDE_FILES=true $0 policy mongo-express:latest --rule sbom/fresh-sbom@v1 --product-key my-product --product-version v1.2
+  DEBUG=true INCLUDE_FILES=true $0 policy mongo-express:latest --rule sbom/fresh-sbom@v1 --product-key my-product --product-version v1.2
 
 EOF
 }
@@ -125,7 +125,7 @@ while [ $# -gt 0 ]; do
       ;;
     -x|--debug)
       echo_log "Debug mode enabled"
-      DEBUG_MODE=true
+      DEBUG=true
       ;;
     --verify-only)
       echo_log "Verify image using remote evidence only"
@@ -156,7 +156,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# Enable debug logging if DEBUG_MODE is true
+# Enable debug logging if DEBUG is true
 verify_flags=()
 evidence_flags=()
 policy_flags=()
@@ -176,7 +176,7 @@ if [[ -z "$target" ]]; then
   exit 1
 fi
 
-if [[ "$DEBUG_MODE" == true ]]; then
+if [[ "$DEBUG" == true ]]; then
   set -x
   verify_flags+=("-vv")
   evidence_flags+=("-vv")

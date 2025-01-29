@@ -242,7 +242,7 @@ setup_docker_link() {
     fi
     
     # Create new link
-    ln -s "$hook_path" "$link_path"
+    sudo ln -s "$hook_path" "$link_path"
     log_info "Created link at $link_path"
 
 }
@@ -260,6 +260,11 @@ for tool in $tools; do
         if [ "$SET_ALIAS" = true ]; then
             log_info "Setting docker alias"
             setup_docker_alias "${plugin_dir}"
+        fi
+
+        if [ "$SET_EXE_LINK" = true ]; then
+            log_info "Setting docker link"
+            setup_docker_link "${plugin_dir}"
         fi
       ;;
     esac

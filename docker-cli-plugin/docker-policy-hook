@@ -3,7 +3,7 @@
 # Will be used as the alias for docker command.
 # Monitor the command and for each "push" if it succeeded we call "docker policy" with the relevant fields.
 
-set -e
+# set -e
 
 # Setup persistent storage
 DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/docker-policy"
