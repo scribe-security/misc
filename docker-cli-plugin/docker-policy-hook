@@ -81,7 +81,7 @@ get_image_tag() {
 get_dockerfile_path() {
   local args=("$@")
   local prev=""
-  local dockerfile="Dockerfile"
+  local dockerfile=""
 
   for arg in "${args[@]}"; do
     if [[ "$prev" = "-f" || "$prev" = "--file" ]]; then
@@ -95,7 +95,17 @@ get_dockerfile_path() {
     prev="$arg"
   done
 
-  # Return an absolute path
+  # No Dockerfile provided
+  if [ -z "$dockerfile" ]; then
+    # Check local Dockerfile
+    if [ -f "Dockerfile" ]; then
+      echo "$(pwd)/Dockerfile"
+      return
+    else
+      echo_log "No Dockerfile provided or found in the current directory."
+      return
+    fi
+
   if [[ "$dockerfile" = /* ]]; then
     echo "$dockerfile"
   else
@@ -294,9 +304,12 @@ main() {
     image_tag="$(get_image_tag "$@")"
     dockerfile_path="$(get_dockerfile_path "$@")"
 
-    echo_log "Mapping [$image_tag] -> [$dockerfile_path]"
-    store_dockerfile_mapping "$image_tag" "$dockerfile_path"
-    cleanup_dockerfile_map
+    # if dockerfile do mapping
+    if [ -n "$dockerfile_path" ]; then
+      echo_log "Mapping [$image_tag] -> [$dockerfile_path]"
+      store_dockerfile_mapping "$image_tag" "$dockerfile_path"
+      cleanup_dockerfile_map
+    fi
 
     local exit_code=0
     if [ "$AUTO_LABEL" = true ]; then
