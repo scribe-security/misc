@@ -105,6 +105,7 @@ get_dockerfile_path() {
       echo_log "No Dockerfile provided or found in the current directory."
       return
     fi
+  fi
 
   if [[ "$dockerfile" = /* ]]; then
     echo "$dockerfile"
@@ -124,6 +125,23 @@ get_first_non_flag_after_command() {
       return
     fi
     #  "$1" != "buildx" ; then
+    
+    if [ "$1" = "$cmd" ] && [ "$1" != "buildx" ]; then
+      found_cmd=true
+    fi
+    shift
+  done
+}
+
+get_all_flags() {
+  local cmd="$1"
+  local found_cmd=false
+  shift
+
+  while [ $# -gt 0 ]; do
+    if [ "$found_cmd" = true ] && [[ "$1" == -* ]]; then
+      echo "$1"
+    fi
     if [ "$1" = "$cmd" ] && [ "$1" != "buildx" ]; then
       found_cmd=true
     fi
@@ -134,13 +152,35 @@ get_first_non_flag_after_command() {
 # First instance after the binary and not buildx
 get_command() {
   local cmd="$1"
-  shift
 
   while [ $# -gt 0 ]; do
     if [ "$1" != "buildx" ]; then
       echo "$1"
       return
     fi
+
+    shift
+  done
+}
+
+get_command_with_plugin() {
+  local cmd="$1"
+  local found_cmd=false
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" != "buildx" ]; then
+      if [ "$found_cmd" = true ]; then
+        echo "buildx $1"
+      else
+        echo "$1"
+      fi
+      return
+    fi
+
+    if [ "$1" = "buildx" ]; then
+      found_cmd=true
+    fi
+
     shift
   done
 }
@@ -297,8 +337,17 @@ echo_log "Bin Hook: $docker_command"
 
 main() {
 
+
+  docker_command_with_plugin="$(get_command_with_plugin "$@")"
+  echo "docker_command_with_plugin: $docker_command_with_plugin"
+
   docker_command_type="$(get_command "$@")"
   echo "docker_command_type: $docker_command_type"
+
+  docker_all_flags_command="$(get_all_flags "$@")"
+  echo "docker_all_flags_command: $docker_all_flags_command"
+
+
   if [[ "$docker_command_type" == "build" ]]; then
     # Build path
     image_tag="$(get_image_tag "$@")"
@@ -329,14 +378,13 @@ main() {
       #   fi
       # fi
 
-      # Shift off "build" and re-run with label args
-      shift
-      command "$docker_command" build "${label_args[@]}" "$@"
+      # Shift until we hit the command "build" and re-run with label args
+
+      command "$docker_command" "$@" "${label_args[@]}"
       exit_code=$?
     else
       # Just pass through
-      shift
-      command "$docker_command" build "$@"
+      command "$docker_command" "$@"
       exit_code=$?
     fi
 
