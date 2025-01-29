@@ -103,10 +103,7 @@ get_dockerfile_path() {
   fi
 }
 
-# Get the image name used after "push" or build with "--push"
-# e.g., docker build --push -t my-image .
-# end case docker buildx build -- 
-get_first_non_flag_after() {
+get_first_non_flag_after_command() {
   local cmd="$1"
   local found_cmd=false
   shift
@@ -116,8 +113,23 @@ get_first_non_flag_after() {
       echo "$1"
       return
     fi
-    if [ "$1" = "$cmd" ]; then
+    #  "$1" != "buildx" ; then
+    if [ "$1" = "$cmd" ] && [ "$1" != "buildx" ]; then
       found_cmd=true
+    fi
+    shift
+  done
+}
+
+# First instance after the binary and not buildx
+get_command() {
+  local cmd="$1"
+  shift
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" != "buildx" ]; then
+      echo "$1"
+      return
     fi
     shift
   done
@@ -274,7 +286,10 @@ echo_log "Bin Hook: $docker_command"
 # set -- $new_args
 
 main() {
-  if [[ "$1" == "build" ]]; then
+
+  docker_command_type="$(get_command "$@")"
+  echo "docker_command_type: $docker_command_type"
+  if [[ "$docker_command_type" == "build" ]]; then
     # Build path
     image_tag="$(get_image_tag "$@")"
     dockerfile_path="$(get_dockerfile_path "$@")"
@@ -321,14 +336,14 @@ main() {
 
     exit $exit_code
 
-  elif [[ "$1" == "push" ]]; then
+  elif [[ "$docker_command_type" == "push" ]]; then
     # Run normal push
     command "$docker_command" "$@"
     local exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
       # After successful push, run policy
-      local image="$(get_first_non_flag_after "$@")"
+      local image="$(get_first_non_flag_after_command "$@")"
       local df="$(get_dockerfile_mapping "$image")"
       echo_log "Push successful, running policy check on: [$image]"
       docker_policy "$image" "$df"
