@@ -235,3 +235,5 @@ echo_log "Executing command: '$tool verify $target ${final_flags[*]}'"
 if [[ -z "$DRY_RUN" ]]; then
   $tool verify "$target" "${final_flags[@]}"
 fi
+
+printenv
