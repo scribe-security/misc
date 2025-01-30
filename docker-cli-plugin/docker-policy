@@ -25,7 +25,7 @@ is_command() {
 }
 
 echo_log() {
-  echo -e "$@" 1>&2
+  echo -e "[SCRIBE_DOCKER_POLICY] $@" 1>&2
 }
 
 
