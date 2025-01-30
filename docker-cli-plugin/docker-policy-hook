@@ -102,7 +102,6 @@ get_dockerfile_path() {
       echo "$(pwd)/Dockerfile"
       return
     else
-      echo_log "No Dockerfile provided or found in the current directory."
       return
     fi
   fi
@@ -404,6 +403,13 @@ main() {
       echo_log "Evidence create and check after build"
       local image="$(get_tag_flag_value "$@")"
       local df="$(get_file_flag_value "$@")"
+
+      # if empty try and use "dockerfile_path"
+      if [ -z "$df" ]; then
+        if [ -n "$dockerfile_path" ]; then
+          df="$dockerfile_path"
+        fi
+      fi
       echo_log "Target image: $image, Dockerfile: $df"
       docker_policy "$image" "$df"
     else
