@@ -17,7 +17,7 @@ touch "$DOCKERFILE_MAP"
 
 # Function to echo to stderr
 echo_log() {
-  echo -e "$@" 1>&2
+  echo -e "[SCRIBE_HOOK] $@" 1>&2
 }
 
 # Default values (set from environment or fallback)
@@ -389,10 +389,14 @@ main() {
     fi
 
     # If build was successful & user passed --push, then run policy
+    echo_log "Checking if --push flag was passed"
     if [[ $exit_code -eq 0 && " $* " == *" --push "* ]]; then
+      echo_log "Evidence create and check after build"
       local image="$(get_tag_flag_value "$@")"
       local df="$(get_file_flag_value "$@")"
       docker_policy "$image" "$df"
+    else
+      echo_log "Skip evidence create and check, Command exit status: $exit_code"
     fi
 
     exit $exit_code
@@ -404,12 +408,13 @@ main() {
 
     if [ $exit_code -eq 0 ]; then
       # After successful push, run policy
+      echo_log "Evidence create and check after push"
       local image="$(get_first_non_flag_after_command "$@")"
       local df="$(get_dockerfile_mapping "$image")"
       echo_log "Push successful, running policy check on: [$image]"
       docker_policy "$image" "$df"
     else
-      echo_log "Push failed, skipping policy check"
+      echo_log "Skip evidence create and check, Command exit status: $exit_code"
     fi
     exit $exit_code
 
