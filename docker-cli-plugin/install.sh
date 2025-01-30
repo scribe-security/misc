@@ -122,7 +122,7 @@ SET_ALIAS=${SET_ALIAS:-false}
 SET_EXE_LINK=${SET_EXE_LINK:-false}
 
 parse_args() {
-  while getopts "t:b:p:dh?xDxAxL" arg; do
+  while getopts "v:t:b:p:dh?xDxAxL" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
@@ -132,6 +132,7 @@ parse_args() {
       x) set -x ;;
       A) SET_ALIAS=true;;
       L) SET_EXE_LINK=true;;
+      v) version="$OPTARG";;
     esac
   done
   if [ -z "$tools" ]; then
@@ -247,8 +248,24 @@ setup_docker_link() {
 
 }
 
+
+install_valint() {
+  version=$1
+  # if version is not provided, install latest
+  if [ -z "$version" ]; then
+    curl -sSfL https://get.scribesecurity.com/install.sh  | sh -s -- -t valint
+  else
+    curl -sSfL https://get.scribesecurity.com/install.sh  | sh -s -- -t valint:$version
+  fi
+
+}
+
+log_info "Installer -scribe valint cli"
+install_valint "$version"
+
 log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
+
 for tool in $tools; do
     case "$tool" in
       "docker-policy")
