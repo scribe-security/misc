@@ -328,17 +328,25 @@ find_docker_binary() {
 # ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
-docker_command="$(find_docker_binary)"
-cmd="$*"
-echo_log "Scribe Hook: $cmd"
-echo_log "Bin Hook: $docker_command"
+
+
 
 # If you want to parse -L or -x before $1, uncomment next lines:
 # new_args="$(parse_args "$@")"
 # set -- $new_args
 
 main() {
+  docker_command="$(find_docker_binary)"
+  cmd="$*"
 
+  echo_log "Scribe Hook: $cmd"
+  echo_log "Bin Hook: $docker_command"
+  # if starts with "docker policy" ignore the hook run original command
+  if [[ "$cmd" == "docker policy"* ]]; then
+    echo_log "Running original command: $cmd"
+    command "$@"
+    exit $?
+  fi
 
   docker_command_with_plugin="$(get_command_with_plugin "$@")"
   echo "docker_command_with_plugin: $docker_command_with_plugin"
@@ -427,5 +435,6 @@ main() {
     exit $?
   fi
 }
+
 
 main "$@"
