@@ -189,6 +189,7 @@ get_tag_flag_value() {
   shift
   while [ $# -gt 0 ]; do
     if [[ "$1" == "-t" || "$1" == "--tag" ]]; then
+      echo_log "Found tag flag"
       if [[ "$1" == *=* ]]; then
         echo "${1#*=}"
         return
@@ -208,6 +209,7 @@ get_file_flag_value() {
   shift
   while [ $# -gt 0 ]; do
     if [[ "$1" == "-f" || "$1" == "--file" ]]; then
+      echo_log "Found file flag"
       if [[ "$1" == *=* ]]; then
         echo "${1#*=}"
         return
@@ -394,6 +396,7 @@ main() {
       echo_log "Evidence create and check after build"
       local image="$(get_tag_flag_value "$@")"
       local df="$(get_file_flag_value "$@")"
+      echo_log "Target image: $image, Dockerfile: $df"
       docker_policy "$image" "$df"
     else
       echo_log "Skip evidence create and check, Command exit status: $exit_code"
@@ -411,7 +414,6 @@ main() {
       echo_log "Evidence create and check after push"
       local image="$(get_first_non_flag_after_command "$@")"
       local df="$(get_dockerfile_mapping "$image")"
-      echo_log "Push successful, running policy check on: [$image]"
       docker_policy "$image" "$df"
     else
       echo_log "Skip evidence create and check, Command exit status: $exit_code"
