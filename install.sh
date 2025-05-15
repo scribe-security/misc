@@ -206,7 +206,7 @@ http_download_status() {
   if is_command curl; then
     # Perform the request and capture the response body and status code
     response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
-    status_code=$(tail -n 1 <<< "$response")  # Get the HTTP status code from curl's output
+    status_code=$(echo "$response" | tail -n 1)
     response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
     
     echo "$response_body"  # Output the body
@@ -487,6 +487,10 @@ Usage: $this [-b] bindir [-d] [-t tool]
   -b install directory , Default - "${install_dir}"
   -d debug log
   -t tool list 'tool:version', Default - "${default_tool}" , Options - "${supported_tools}"
+  -U username for basic auth (Default ananymous)
+  -P password for basic auth (Default ananymous)
+  -L Artifactory download url, Default - "${download_url}"
+  -R Artifactory download repository, Default - "${download_repo}"
   -h usage
 
   Empty version will select the latest version.
