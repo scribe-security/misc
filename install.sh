@@ -23,10 +23,11 @@ get_latest_artifact() {
 
   url=${download_url}/api/storage/${download_repo}/${subpath}
   log_debug "get_latest_artifact(url=${url})"
-  latestArtifact=$(http_download_stdout ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
-  
+
+  latestArtifact=$(http_download_status_log ${url}?lastModified | grep uri | awk '{ print $3 }' | sed s/\"//g | sed s/,//g)
+
   if [ -z "${latestArtifact}" ]; then
-    log_err "could not find latest artifact, url='${url}'"
+    log_err "could not find latest artifact, url='${url}' ${latestArtifact}"
     return 1
   fi
   
@@ -35,6 +36,9 @@ get_latest_artifact() {
 
   echo "$latestDownloadUrl"
 }
+
+
+
 
 get_artifact() {
   download_url="$1"
@@ -92,7 +96,6 @@ download_asset() {
     log_err "could not find asset url, name='${name}' os='${os}' arch='${arch}'"
     return 1
   fi
-
   asset_filename=$(basename $asset_url)
   actualVersion=$(echo ${asset_filename} | cut -d '_' -f 2)
   log_info "Downloading, Version=${actualVersion}"
@@ -161,34 +164,118 @@ echoerr() {
   echo "$@" 1>&2
 }
 
+http_download_status_log() {
+  source_url=$1
+
+  # Call http_download_status to get the response body and status code
+  response=$(http_download_status "$source_url")
+  status_code=$?  # Capture the status code from the previous function
+
+  # Check the status code and log appropriate messages
+  if [ "$status_code" -eq 200 ]; then
+    log_info "Download successful."
+    log_debug "Response: $response"
+
+  elif [ "$status_code" -eq 401 ]; then
+    log_err "Access Denied (HTTP 401). Authentication failed. Please check your credentials."
+    
+  elif [ "$status_code" -eq 403 ]; then
+    log_err "Access Denied (HTTP 403). Forbidden access. You do not have permission to access this artifact."
+    
+  else
+    log_err "Download failed with HTTP status $status_code. Please check the repository or artifact URL. Response: $response"
+  fi
+
+  # Return the response body (stdout) for further processing or use in grep
+  echo "$response"
+}
+
+http_download_status() {
+  source_url=$1
+  log_debug "http_download $source_url"
+  
+  # Add Basic Auth Header if username and password are provided
+  if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
+    auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+    log_debug "Using Basic Authentication $BASIC_AUTH_USERNAME $BASIC_AUTH_PASSWORD"
+  else
+    auth_header=""
+  fi
+
+  # Use curl if available
+  if is_command curl; then
+    # Perform the request and capture the response body and status code
+    response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
+    status_code=$(tail -n 1 <<< "$response")  # Get the HTTP status code from curl's output
+    response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
+    
+    echo "$response_body"  # Output the body
+    return $status_code  # Return the HTTP status code
+
+  # Use wget if available
+  elif is_command wget; then
+    # Perform the request and capture the response body and status code
+    response=$(wget --quiet --header "$auth_header" "$source_url" -O /tmp/wget_response_body.txt)
+    status_code=$?  # Capture the exit status code from wget
+    response_body=$(cat /tmp/wget_response_body.txt)  # Capture the response body
+    echo "$response_body"  # Output the body
+    return $status_code  # Return the HTTP status code
+
+  else
+    log_crit "http_download unable to find wget or curl"
+    return 1
+  fi
+}
+
 http_download_stdout() {
   source_url=$1
   log_debug "http_download_stdout $source_url"
+  
+  # Add Basic Auth Header if username and password are provided
+  if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
+    auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+    log_debug "Using Basic Authentication"
+  else
+    auth_header=""
+  fi
+
   if is_command curl; then
-    curl --silent ${source_url}
+    curl --silent -H "$auth_header" ${source_url}
     return
   elif is_command wget; then
-    wget -q -O /dev/stdout ${source_url}
+    wget -q --header "$auth_header" -O /dev/stdout ${source_url}
     return
   fi
   log_crit "http_download_stdout unable to find wget or curl"
   return 1
 }
 
-
 http_download_curl() {
   local_file=$1
   source_url=$2
   header=$3
+  
+  # Add Basic Auth Header if username and password are provided
+  if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
+    auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+  fi
+
   if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
+    code=$(curl -w '%{http_code}' -L -H "$auth_header" -o "$local_file" "$source_url")
   else
-    code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
+    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "$source_url")
   fi
-  if [ "$code" != "200" ]; then
+
+
+  if [ "$code" -eq 401 ]; then
+    log_err "Access Denied (HTTP 401). Authentication failed. Please check your credentials."
+    
+  elif [ "$code" -eq 403 ]; then
+    log_err "Access Denied (HTTP 403). Forbidden access. You do not have permission to access this artifact."
+  else
     log_debug "http_download_curl received HTTP status $code"
-    return 1
   fi
+
   return 0
 }
 
@@ -196,10 +283,16 @@ http_download_wget() {
   local_file=$1
   source_url=$2
   header=$3
+  
+  # Add Basic Auth Header if username and password are provided
+  if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
+    auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+  fi
+
   if [ -z "$header" ]; then
-    wget -q -O "$local_file" "$source_url"
+    wget -q --header "$auth_header" -O "$local_file" "$source_url"
   else
-    wget -q --header "$header" -O "$local_file" "$source_url"
+    wget -q --header "$auth_header" --header "$header" -O "$local_file" "$source_url"
   fi
 }
 
@@ -401,20 +494,25 @@ EOF
   exit 2
 }
 
+
 parse_args() {
-  while getopts "U:R:t:b:dh?xDxF" arg; do
+  while getopts "U:P:L:R:t:b:dh?xDxF" arg; do
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
       h | \?) usage;;
       t) tools="${tools} ${OPTARG}";;
-      U) download_url="$OPTARG" ;;
+      L) download_url="$OPTARG" ;;
       R) download_repo="$OPTARG" ;;
       D) ENV="dev";;
       F) ENV="feature";;
       x) set -x ;;
+      U) BASIC_AUTH_USERNAME="$OPTARG" ;;  # Accept basic auth username
+      P) BASIC_AUTH_PASSWORD="$OPTARG" ;;  # Accept basic auth password
     esac
   done
+
+  # Set default values if not already set
   if [ -z "$tools" ]; then
     if [ ! -z "$SCRIBE_TOOLS" ]; then
       tools="${SCRIBE_TOOLS}"
