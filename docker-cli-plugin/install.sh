@@ -5,48 +5,8 @@ is_command() {
 }
 
 
-http_download_curl() {
-  local_file=$1
-  source_url=$2
-  header=$3
-  if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
-  else
-    code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
-  fi
-  if [ "$code" != "200" ]; then
-    log_debug "http_download_curl received HTTP status $code"
-    return 1
-  fi
-  return 0
-}
-
-http_download_wget() {
-  local_file=$1
-  source_url=$2
-  header=$3
-  if [ -z "$header" ]; then
-    wget -q -O "$local_file" "$source_url"
-  else
-    wget -q --header "$header" -O "$local_file" "$source_url"
-  fi
-}
-
-http_download() {
-  log_debug "http_download $2"
-  if is_command curl; then
-    http_download_curl "$@"
-    return
-  elif is_command wget; then
-    http_download_wget "$@"
-    return
-  fi
-  log_crit "http_download unable to find wget or curl"
-  return 1
-}
-
 echoerr() {
-  echo -n "$@\n" 1>&2
+  echo -e "$@" 1>&2
 }
 
 log_prefix() {
@@ -101,6 +61,48 @@ log_crit() {
   echoerr "$(log_prefix)" "$(log_tag 2)" "$@"
 }
 
+
+
+http_download_curl() {
+  local_file=$1
+  source_url=$2
+  header=$3
+  if [ -z "$header" ]; then
+    code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
+  else
+    code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
+  fi
+  if [ "$code" != "200" ]; then
+    log_debug "http_download_curl received HTTP status $code"
+    return 1
+  fi
+  return 0
+}
+
+http_download_wget() {
+  local_file=$1
+  source_url=$2
+  header=$3
+  if [ -z "$header" ]; then
+    wget -q -O "$local_file" "$source_url"
+  else
+    wget -q --header "$header" -O "$local_file" "$source_url"
+  fi
+}
+
+http_download() {
+  log_debug "http_download $2"
+  if is_command curl; then
+    http_download_curl "$@"
+    return
+  elif is_command wget; then
+    http_download_wget "$@"
+    return
+  fi
+  log_crit "http_download unable to find wget or curl"
+  return 1
+}
+
 usage() {
   this="install.sh"
   cat<<EOF
@@ -115,14 +117,22 @@ EOF
   exit 2
 }
 
+# Set SET_ALIAS default
+SET_ALIAS=${SET_ALIAS:-false}
+SET_EXE_LINK=${SET_EXE_LINK:-false}
+
 parse_args() {
-  while getopts "t:b:p:dh?xD" arg; do
+  while getopts "v:t:b:p:dh?xDxAxL" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
       d) log_set_priority 10 ;;
       t) tools="${tools} ${OPTARG}";;
+      b) branch="$OPTARG";base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}" ;;
       x) set -x ;;
+      A) SET_ALIAS=true;;
+      L) SET_EXE_LINK=true;;
+      v) version="$OPTARG";;
     esac
   done
   if [ -z "$tools" ]; then
@@ -134,11 +144,13 @@ parse_args() {
 
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
-supported_tools="valint"
-valint_plugins="docker-bom docker-verify"
+supported_tools="docker-policy docker-policy-hook context"
+
+builtin_policies="scribe-default.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
-tools=""
+tools="docker-policy docker-policy-hook"
+
 parse_args "$@"
 export PATH="${scribe_default}:$PATH"
 
@@ -146,15 +158,15 @@ install_plugin() {
     tool=$1
     plugin_dir=$2
     plugins=$3
+    log_info "Installing Plugin '$base_url'"
 
     for plugin in ${plugins}; do
         log_info "Selected, tool=${tool}, plugin=${plugin}"
         if ! is_command $tool; then
                 log_info "Tool not found, Downloading, Tool: $tool"
-                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool $@
-            return
+                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool -D
         fi
-
+        log_info "Downloading plugin, ${plugin}"
         asset_url="${base_url}/docker-cli-plugin/${plugin}"
         asset_filepath="${plugin_dir}/${plugin}"
 
@@ -164,12 +176,116 @@ install_plugin() {
     done
 }
 
+install_file() {
+    local_file=$1
+    plugin_dir=$2
+    log_info "Installing File '$base_url'"
+
+    log_info "Selected, file=${local_file}"
+    asset_url="${base_url}/docker-cli-plugin/${local_file}"
+    asset_filepath="${plugin_dir}/${local_file}"
+
+    http_download "${asset_filepath}" "${asset_url}"
+    log_info "Installed ${plugin_dir}/${local_file}"
+}
+
+install_policies() {
+    local plugin_dir="$1"
+    local policies="$2"
+    
+    for policy in $policies; do
+        install_file "${policy}" "${plugin_dir}"
+    done
+}
+
+setup_docker_alias() {
+    local plugin_path="$1"
+    local hook_path="${plugin_path}/docker-policy-hook"
+    
+    if [ ! -f "$hook_path" ]; then
+        log_info "Error: docker-policy-hook not found at $hook_path"
+        return 1
+    fi
+    
+    # Add to shell rc file if it exists
+    for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
+        if [ -f "$rc" ]; then
+            # Remove any existing docker alias
+            sed -i '/alias docker=/d' "$rc"
+            # Add new alias with full path
+            echo "alias docker=\"${hook_path}\"" >> "$rc"
+            log_info "Added alias to $rc"
+        fi
+    done
+    
+    # Set alias for current session
+    alias docker="${hook_path}"
+    log_info "Alias set for current session. Please source your shell's rc file or start a new session."
+    type docker
+    alias
+}
+
+# Default location /usr/local/bin
+setup_docker_link() {
+    local plugin_path="$1"
+    local hook_path="${plugin_path}/docker-policy-hook"
+    local link_path="/usr/local/bin/docker"
+    
+    if [ ! -f "$hook_path" ]; then
+        log_info "Error: docker-policy-hook not found at $hook_path"
+        return 1
+    fi
+    
+    # Remove existing link
+    if [ -L "$link_path" ]; then
+        rm "$link_path"
+        log_info "Removed existing link at $link_path"
+    fi
+    
+    # Create new link
+    sudo ln -s "$hook_path" "$link_path"
+    log_info "Created link at $link_path"
+
+}
+
+
+install_valint() {
+  version=$1
+  # if version is not provided, install latest
+  if [ -z "$version" ]; then
+    curl -sSfL https://get.scribesecurity.com/install.sh  | sh -s -- -t valint
+  else
+    curl -sSfL https://get.scribesecurity.com/install.sh  | sh -s -- -t valint:$version
+  fi
+
+}
+
+log_info "Installer -scribe valint cli"
+install_valint "$version"
+
 log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
-for tool in ${tools}; do
+
+for tool in $tools; do
     case "$tool" in
-      valint)  
-        install_plugin valint "${plugin_dir}" "${valint_plugins}"
+      "docker-policy")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
+        install_policies "${plugin_dir}" "${builtin_policies}"
       ;;
+      "docker-policy-hook")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
+        if [ "$SET_ALIAS" = true ]; then
+            log_info "Setting docker alias"
+            setup_docker_alias "${plugin_dir}"
+        fi
+
+        if [ "$SET_EXE_LINK" = true ]; then
+            log_info "Setting docker link"
+            setup_docker_link "${plugin_dir}"
+        fi
+      ;;
+      "context")
+        install_plugin "${tool}" "${plugin_dir}" "${tool}"
     esac
 done
+set +x

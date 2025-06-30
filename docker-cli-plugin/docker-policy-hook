@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+
+# ------------------------------------------------------------------------------
+# Docker Policy Hook: intercepts "docker build" / "docker push" to:
+#   - Optionally add labels for build images.
+#   - Store Dockerfile references for policy checks.
+#   - Run "docker policy" after successful pushes.
+# ------------------------------------------------------------------------------
+
+# set -e  # Uncomment if you want the script to exit immediately on any command error.
+
+# Setup persistent storage
+DOCKER_POLICY_DIR="${XDG_CACHE_HOME:-${HOME}/.cache}/docker-policy"
+DOCKERFILE_MAP="${DOCKER_POLICY_DIR}/dockerfile-map"
+mkdir -p "$DOCKER_POLICY_DIR"
+touch "$DOCKERFILE_MAP"
+
+# Function to echo to stderr
+echo_log() {
+  echo -e "[SCRIBE_HOOK] $@" 1>&2
+}
+
+# Default values (set from environment or fallback)
+AUTO_LABEL=${AUTO_LABEL:-false}
+DEBUG=${DEBUG:-false}
+
+if [ "$DEBUG" = "true" ]; then
+  set -x
+fi
+
+# ------------------------------------------------------------------------------
+# Store / retrieve Dockerfile path mappings
+# ------------------------------------------------------------------------------
+store_dockerfile_mapping() {
+    local image="$1"
+    local dockerfile="$2"
+
+    local full_dockerfile_path
+    full_dockerfile_path="$(realpath "$dockerfile")"
+
+    # If not already mapped, append "image|/full/path" to the map file
+    if ! grep -q "^$image|$full_dockerfile_path$" "$DOCKERFILE_MAP"; then
+        echo "$image|$full_dockerfile_path" >> "$DOCKERFILE_MAP"
+    else
+        echo_log "Mapping for [$image -> $full_dockerfile_path] already exists. Skipping."
+    fi
+}
+
+get_dockerfile_mapping() {
+    local image="$1"
+    grep "^$image|" "$DOCKERFILE_MAP" | cut -d'|' -f2-
+}
+
+cleanup_dockerfile_map() {
+  if [ -f "$DOCKERFILE_MAP" ]; then
+    local temp_file="${DOCKERFILE_MAP}.tmp"
+    tail -n 1000 "$DOCKERFILE_MAP" > "$temp_file"
+    mv "$temp_file" "$DOCKERFILE_MAP"
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# Helpers for parsing docker build arguments
+# ------------------------------------------------------------------------------
+get_image_tag() {
+  local args=("$@")
+  local prev=""
+
+  for arg in "${args[@]}"; do
+    if [[ "$prev" = "-t" || "$prev" = "--tag" ]]; then
+      echo "$arg"
+      return
+    fi
+    prev="$arg"
+  done
+
+  # Fallback if no -t/--tag found
+  echo "latest"
+}
+
+get_dockerfile_path() {
+  local args=("$@")
+  local prev=""
+  local dockerfile=""
+
+  for arg in "${args[@]}"; do
+    if [[ "$prev" = "-f" || "$prev" = "--file" ]]; then
+      dockerfile="$arg"
+      break
+    fi
+    if [[ "$arg" == --file=* ]]; then
+      dockerfile="${arg#--file=}"
+      break
+    fi
+    prev="$arg"
+  done
+
+  # No Dockerfile provided
+  if [ -z "$dockerfile" ]; then
+    # Check local Dockerfile
+    if [ -f "Dockerfile" ]; then
+      echo "$(pwd)/Dockerfile"
+      return
+    else
+      return
+    fi
+  fi
+
+  if [[ "$dockerfile" = /* ]]; then
+    echo "$dockerfile"
+  else
+    echo "$(pwd)/$dockerfile"
+  fi
+}
+
+get_first_non_flag_after_command() {
+  local cmd="$1"
+  local found_cmd=false
+  shift
+
+  while [ $# -gt 0 ]; do
+    if [ "$found_cmd" = true ] && [[ "$1" != -* ]]; then
+      echo "$1"
+      return
+    fi
+    #  "$1" != "buildx" ; then
+    
+    if [ "$1" = "$cmd" ] && [ "$1" != "buildx" ]; then
+      found_cmd=true
+    fi
+    shift
+  done
+}
+
+get_all_flags() {
+  local cmd="$1"
+  local found_cmd=false
+  shift
+
+  while [ $# -gt 0 ]; do
+    if [ "$found_cmd" = true ] && [[ "$1" == -* ]]; then
+      echo "$1"
+    fi
+    if [ "$1" = "$cmd" ] && [ "$1" != "buildx" ]; then
+      found_cmd=true
+    fi
+    shift
+  done
+}
+
+# First instance after the binary and not buildx
+get_command() {
+  local cmd="$1"
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" != "buildx" ]; then
+      echo "$1"
+      return
+    fi
+
+    shift
+  done
+}
+
+get_command_with_plugin() {
+  local cmd="$1"
+  local found_cmd=false
+
+  while [ $# -gt 0 ]; do
+    if [ "$1" != "buildx" ]; then
+      if [ "$found_cmd" = true ]; then
+        echo "buildx $1"
+      else
+        echo "$1"
+      fi
+      return
+    fi
+
+    if [ "$1" = "buildx" ]; then
+      found_cmd=true
+    fi
+
+    shift
+  done
+}
+
+get_tag_flag_value() {
+  shift
+  while [ $# -gt 0 ]; do
+    if [[ "$1" == "-t" || "$1" == "--tag" ]]; then
+      echo_log "Found tag flag"
+      if [[ "$1" == *=* ]]; then
+        echo "${1#*=}"
+        return
+      else
+        shift
+        if [ -n "$1" ]; then
+          echo "$1"
+          return
+        fi
+      fi
+    fi
+    shift
+  done
+}
+
+get_file_flag_value() {
+  shift
+  while [ $# -gt 0 ]; do
+    if [[ "$1" == "-f" || "$1" == "--file" ]]; then
+      echo_log "Found file flag"
+      if [[ "$1" == *=* ]]; then
+        echo "${1#*=}"
+        return
+      else
+        shift
+        if [ -n "$1" ]; then
+          echo "$1"
+          return
+        fi
+      fi
+    fi
+    shift
+  done
+}
+
+# ------------------------------------------------------------------------------
+# Build Docker label args from DOCKER_CONTEXT_* environment variables
+# ------------------------------------------------------------------------------
+get_label_args() {
+  local labels=()
+  # The rest from your environment
+  [ -n "$DOCKER_CONTEXT_GIT_URL" ] && labels+=( "--label" "org.opencontainers.image.source=$DOCKER_CONTEXT_GIT_URL" )
+  [ -n "$DOCKER_CONTEXT_GIT_REF" ] && labels+=( "--label" "org.opencontainers.image.revision=$DOCKER_CONTEXT_GIT_REF" )
+  [ -n "$DOCKER_CONTEXT_VERSION" ] && labels+=( "--label" "org.opencontainers.image.version=$DOCKER_CONTEXT_VERSION" )
+  [ -n "$DOCKER_CONTEXT_RUN_ID" ] && labels+=( "--label" "org.opencontainers.image.run_id=$DOCKER_CONTEXT_RUN_ID" )
+  [ -n "$DOCKER_CONTEXT_WORKFLOW" ] && labels+=( "--label" "org.opencontainers.image.workflow=$DOCKER_CONTEXT_WORKFLOW" )
+  [ -n "$DOCKER_CONTEXT_BUILD_NUM" ] && labels+=( "--label" "org.opencontainers.image.build_num=$DOCKER_CONTEXT_BUILD_NUM" )
+  [ -n "$DOCKER_CONTEXT_JOB_NAME" ] && labels+=( "--label" "org.opencontainers.image.job_name=$DOCKER_CONTEXT_JOB_NAME" )
+  [ -n "$DOCKER_CONTEXT_GIT_BRANCH" ] && labels+=("--label" "org.opencontainers.image.branch=$DOCKER_CONTEXT_GIT_BRANCH")
+  [ -n "$DOCKER_CONTEXT_GIT_TAG" ] && labels+=("--label" "org.opencontainers.image.tag=$DOCKER_CONTEXT_GIT_TAG")
+  [ -n "$DOCKER_CONTEXT_GIT_UUID" ] && labels+=("--label" "org.opencontainers.image.git_uuid=$DOCKER_CONTEXT_GIT_UUID")
+  [ -n "$DOCKER_CONTEXT_ORGANIZATION" ] && labels+=("--label" "org.opencontainers.image.organization=$DOCKER_CONTEXT_ORGANIZATION")
+
+  echo "${labels[@]}"
+}
+
+# ------------------------------------------------------------------------------
+# Usage
+# ------------------------------------------------------------------------------
+usage() {
+  cat << EOF
+Docker Policy Hook - Monitors Docker commands and applies policies
+
+Usage:
+  docker [global options] COMMAND [command options]
+
+Options:
+  -h, --help    Show this help message
+  -x            Enable debug mode
+  -L            Enable automatic label injection for builds
+
+Environment Variables for Labels (picked up if -L is set):
+  DOCKER_CONTEXT_GIT_URL      => org.opencontainers.image.source
+  DOCKER_CONTEXT_GIT_REF      => org.opencontainers.image.revision
+  DOCKER_CONTEXT_VERSION      => org.opencontainers.image.version
+  DOCKER_CONTEXT_RUN_ID       => org.opencontainers.image.run_id
+  DOCKER_CONTEXT_WORKFLOW     => org.opencontainers.image.workflow
+  DOCKER_CONTEXT_BUILD_NUM    => org.opencontainers.image.build_num
+  DOCKER_CONTEXT_JOB_NAME     => org.opencontainers.image.job_name
+EOF
+  exit 1
+}
+
+# ------------------------------------------------------------------------------
+# Parse optional -h / -x / -L flags
+# ------------------------------------------------------------------------------
+parse_args() {
+  while getopts "hxL" arg; do
+    case "$arg" in
+      h|--help) usage ;;
+      x) DEBUG=true; set -x ;;
+      L) AUTO_LABEL=true ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  echo "$@"
+}
+
+# ------------------------------------------------------------------------------
+# docker_policy: runs "docker policy" (a custom command) after build/push
+# ------------------------------------------------------------------------------
+docker_policy() {
+  local image="$1"
+  local dockerfile="$2"
+  
+  if [[ -n "$dockerfile" && -f "$dockerfile" ]]; then
+    echo_log "Running policy check on [$image] with Dockerfile: [$dockerfile]"
+    command docker policy "$image" -f "$dockerfile"
+  else
+    echo_log "Running policy check on [$image]"
+    command docker policy "$image"
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# find_docker_binary: locate the real "docker" ignoring the current dir
+# ------------------------------------------------------------------------------
+find_docker_binary() {
+  local docker_path
+  local current_dir
+  current_dir="$(pwd)"
+
+  local modified_path
+  modified_path="$(echo "$PATH" \
+    | sed -e "s|:$current_dir||" \
+          -e "s|$current_dir:||" \
+          -e "s|$current_dir||" \
+          -e "s|/usr/local/bin:||" \
+          -e "s|:/usr/local/bin||"
+  )"
+
+  docker_path="$(PATH="$modified_path" which docker)"
+  echo "$docker_path"
+}
+
+# ------------------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------------------
+
+
+
+# If you want to parse -L or -x before $1, uncomment next lines:
+# new_args="$(parse_args "$@")"
+# set -- $new_args
+
+main() {
+  docker_command="$(find_docker_binary)"
+  cmd="$*"
+
+  echo_log "Scribe Hook: $cmd"
+  echo_log "Bin Hook: $docker_command"
+  # if starts with "docker policy" ignore the hook run original command
+  if [[ "$cmd" == "docker policy"* ]]; then
+    echo_log "Running original command: $cmd"
+    command "$@"
+    exit $?
+  fi
+
+  docker_command_with_plugin="$(get_command_with_plugin "$@")"
+  echo "docker_command_with_plugin: $docker_command_with_plugin"
+
+  docker_command_type="$(get_command "$@")"
+  echo "docker_command_type: $docker_command_type"
+
+  docker_all_flags_command="$(get_all_flags "$@")"
+  echo "docker_all_flags_command: $docker_all_flags_command"
+
+
+  if [[ "$docker_command_type" == "build" ]]; then
+    # Build path
+    image_tag="$(get_image_tag "$@")"
+    dockerfile_path="$(get_dockerfile_path "$@")"
+
+    # if dockerfile do mapping
+    if [ -n "$dockerfile_path" ]; then
+      echo_log "Mapping [$image_tag] -> [$dockerfile_path]"
+      store_dockerfile_mapping "$image_tag" "$dockerfile_path"
+      cleanup_dockerfile_map
+    fi
+
+    local exit_code=0
+    if [ "$AUTO_LABEL" = true ]; then
+      # Optionally source an external context script if you want:
+      source "$(dirname "$0")/context" 2>/dev/null || true
+
+      # Print them (for debugging):
+      # printenv | grep DOCKER_CONTEXT || true
+      echo_log "Adding labels for policy compliance"
+      # Collect label args
+      label_args=( $( get_label_args ) )
+
+      # if [ ${#label_args[@]} -gt 0 ]; then
+      #   echo_log "Adding labels for policy compliance"
+      #   if [ "$DEBUG" = true ]; then
+      #     echo_log "Labels: ${label_args[*]}"
+      #   fi
+      # fi
+
+      # Shift until we hit the command "build" and re-run with label args
+
+      command "$docker_command" "$@" "${label_args[@]}"
+      exit_code=$?
+    else
+      # Just pass through
+      command "$docker_command" "$@"
+      exit_code=$?
+    fi
+
+    # If build was successful & user passed --push, then run policy
+    echo_log "Checking if --push flag was passed"
+    if [[ $exit_code -eq 0 && " $* " == *" --push "* ]]; then
+      echo_log "Evidence create and check after build"
+      local image="$(get_tag_flag_value "$@")"
+      local df="$(get_file_flag_value "$@")"
+
+      # if empty try and use "dockerfile_path"
+      if [ -z "$df" ]; then
+        if [ -n "$dockerfile_path" ]; then
+          df="$dockerfile_path"
+        fi
+      fi
+      echo_log "Target image: $image, Dockerfile: $df"
+      docker_policy "$image" "$df"
+    else
+      echo_log "Skip evidence create and check, Command exit status: $exit_code"
+    fi
+
+    exit $exit_code
+
+  elif [[ "$docker_command_type" == "push" ]]; then
+    # Run normal push
+    command "$docker_command" "$@"
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+      # After successful push, run policy
+      echo_log "Evidence create and check after push"
+      local image="$(get_first_non_flag_after_command "$@")"
+      local df="$(get_dockerfile_mapping "$image")"
+      docker_policy "$image" "$df"
+    else
+      echo_log "Skip evidence create and check, Command exit status: $exit_code"
+    fi
+    exit $exit_code
+
+  else
+    # For all other commands, just pass them along
+    echo "No hook for command: $1"
+    command "$docker_command" "$@"
+    exit $?
+  fi
+}
+
+
+main "$@"
