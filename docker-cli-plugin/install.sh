@@ -116,12 +116,13 @@ EOF
 }
 
 parse_args() {
-  while getopts "t:b:p:dh?xD" arg; do
+  while getopts "b:t:b:p:dh?xD" arg; do
     case "$arg" in
       p) plugin_dir="$OPTARG" ;;
       h | \?) usage;;
       d) log_set_priority 10 ;;
       t) tools="${tools} ${OPTARG}";;
+      b) branch="$OPTARG";base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}" ;;
       x) set -x ;;
     esac
   done
@@ -135,7 +136,8 @@ parse_args() {
 plugin_dir="${HOME}/.docker/cli-plugins"
 scribe_default="${HOME}/.scribe/bin/"
 supported_tools="valint"
-valint_plugins="docker-bom docker-verify"
+valint_plugins="docker-policy"
+builtin_policies="scout_trivy.yaml"
 branch="master"
 base_url="https://raw.githubusercontent.com/scribe-security/misc/${branch}"
 tools=""
@@ -146,15 +148,15 @@ install_plugin() {
     tool=$1
     plugin_dir=$2
     plugins=$3
+    log_info "Installing Plugin '$base_url'"
 
     for plugin in ${plugins}; do
         log_info "Selected, tool=${tool}, plugin=${plugin}"
         if ! is_command $tool; then
                 log_info "Tool not found, Downloading, Tool: $tool"
-                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool $@
-            return
+                curl -sSfL "${base_url}/install.sh" | sh -s -- -t $tool -D
         fi
-
+        log_info "Downloading plugin, ${plugin}"
         asset_url="${base_url}/docker-cli-plugin/${plugin}"
         asset_filepath="${plugin_dir}/${plugin}"
 
@@ -164,12 +166,29 @@ install_plugin() {
     done
 }
 
+install_policies() {
+  plugin_dir=$1
+  policies=$2
+  log_info "Installing Policies '$base_url'"
+
+  for policy in ${policies}; do
+    log_info "Selected, policy=${policy}"
+    asset_url="${base_url}/docker-cli-plugin/${policy}"
+    asset_filepath="${plugin_dir}/${policy}"
+
+    http_download "${asset_filepath}" "${asset_url}"
+    log_info "Installed ${plugin_dir}/${policy}"
+  done
+
+}
+
 log_info "Installer - Scribe docker cli plugins"
 [ -d $plugin_dir ] || mkdir -p $plugin_dir
 for tool in ${tools}; do
     case "$tool" in
       valint)  
         install_plugin valint "${plugin_dir}" "${valint_plugins}"
+        install_policies "${plugin_dir}" "${builtin_policies}"
       ;;
     esac
 done
