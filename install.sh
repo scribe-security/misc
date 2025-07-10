@@ -2,7 +2,7 @@
 download_repo="scribe-generic-public-local"
 download_url="https://scribesecuriy.jfrog.io/artifactory"
 install_dir="${HOME}/.scribe/bin"
-
+HTTP_VERSION_FLAG=--http2
 
 get_latest_artifact() {
   download_url="$1"
@@ -205,7 +205,7 @@ http_download_status() {
   # Use curl if available
   if is_command curl; then
     # Perform the request and capture the response body and status code
-    response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
+    response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
     status_code=$(echo "$response" | tail -n 1)
     response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
     
@@ -240,7 +240,7 @@ http_download_stdout() {
   fi
 
   if is_command curl; then
-    curl --silent -H "$auth_header" ${source_url}
+    curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
     return
   elif is_command wget; then
     wget -q --header "$auth_header" -O /dev/stdout ${source_url}
@@ -257,13 +257,13 @@ http_download_curl() {
   
   # Add Basic Auth Header if username and password are provided
   if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
-    auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+    auth_header="-u${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
   fi
 
   if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -H "$auth_header" -o "$local_file" "$source_url")
+    code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
   else
-    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "$source_url")
+    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
   fi
 
 
@@ -491,6 +491,7 @@ Usage: $this [-b] bindir [-d] [-t tool]
   -P password for basic auth (Default ananymous)
   -L Artifactory download url, Default - "${download_url}"
   -R Artifactory download repository, Default - "${download_repo}"
+  -V <version> Force HTTP version for downloads (curl only), e.g., 1.0, 1.1, 2
   -h usage
 
   Empty version will select the latest version.
@@ -498,9 +499,9 @@ EOF
   exit 2
 }
 
-
+ 
 parse_args() {
-  while getopts "U:P:L:R:t:b:dh?xDxF" arg; do
+  while getopts "V:U:P:L:R:t:b:dh?xDxF" arg; do
     case "$arg" in
       b) install_dir="$OPTARG" ;;
       d) log_set_priority 10 ;;
@@ -513,6 +514,14 @@ parse_args() {
       x) set -x ;;
       U) BASIC_AUTH_USERNAME="$OPTARG" ;;  # Accept basic auth username
       P) BASIC_AUTH_PASSWORD="$OPTARG" ;;  # Accept basic auth password
+      V)
+        case "$OPTARG" in
+          "1.0") HTTP_VERSION_FLAG="--http1.0" ;;
+          "1.1") HTTP_VERSION_FLAG="--http1.1" ;;
+          "2")   HTTP_VERSION_FLAG="--http2" ;;
+          *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
+        esac
+        ;;
     esac
   done
 
