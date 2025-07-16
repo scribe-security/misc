@@ -206,9 +206,17 @@ http_download_status() {
   if is_command curl; then
     # Perform the request and capture the response body and status code
     if [ -z "$auth_header" ]; then
-        response=$(curl --silent --write-out "%{http_code}" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+        if [ -z "$HTTP_VERSION_FLAG" ]; then
+          response=$(curl --silent --write-out "%{http_code}" "$source_url" -o /tmp/curl_response_body.txt)
+        else
+          response=$(curl --silent --write-out "%{http_code}" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+        fi
     else
+        if [ -z "$HTTP_VERSION_FLAG" ]; then
           response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+        else
+          response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
+        fi
     fi
 
     status_code=$(echo "$response" | tail -n 1)
@@ -246,9 +254,17 @@ http_download_stdout() {
 
   if is_command curl; then
     if [ -z "$auth_header" ]; then
-      curl --silent "${HTTP_VERSION_FLAG}" ${source_url}
+      if [ -z "$HTTP_VERSION_FLAG" ]; then
+        curl --silent "${source_url}"
+      else
+        curl --silent "${HTTP_VERSION_FLAG}" ${source_url}
+      fi
     else
-      curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+      if [ -z "$HTTP_VERSION_FLAG" ]; then
+        curl --silent -H "$auth_header" "${source_url}"
+      else
+        curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+      fi
     fi
     return
   elif is_command wget; then
@@ -270,9 +286,20 @@ http_download_curl() {
   fi
 
   if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
+    if [ -z "$HTTP_VERSION_FLAG" ]; then
+      code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${source_url}")
+    else
+      code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "${source_url}")
+    fi
+
+    # code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
   else
-    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
+    if [ -z "$HTTP_VERSION_FLAG" ]; then
+      code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" ${auth_header} "${source_url}")
+    else
+      code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "${source_url}")
+    fi
+    # code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
   fi
 
 
