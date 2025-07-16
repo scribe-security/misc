@@ -4,6 +4,10 @@ download_url="https://scribesecuriy.jfrog.io/artifactory"
 install_dir="${HOME}/.scribe/bin"
 HTTP_VERSION_FLAG=--http2
 
+if [ "$os" = "windows" ]; then
+  HTTP_VERSION_FLAG=""
+fi
+
 get_latest_artifact() {
   download_url="$1"
   download_repo="$2"
