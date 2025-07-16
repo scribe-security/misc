@@ -520,12 +520,17 @@ parse_args() {
       U) BASIC_AUTH_USERNAME="$OPTARG" ;;  # Accept basic auth username
       P) BASIC_AUTH_PASSWORD="$OPTARG" ;;  # Accept basic auth password
       V)
-        case "$OPTARG" in
-          "1.0") HTTP_VERSION_FLAG="--http1.0" ;;
-          "1.1") HTTP_VERSION_FLAG="--http1.1" ;;
-          "2")   HTTP_VERSION_FLAG="--http2" ;;
-          *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
-        esac
+        if [ "$os" = "windows" ]; then
+          #unset HTTP_VERSION_FLAG arg
+          HTTP_VERSION_FLAG=""
+        else
+          case "$OPTARG" in
+            "1.0") HTTP_VERSION_FLAG="--http1.0" ;;
+            "1.1") HTTP_VERSION_FLAG="--http1.1" ;;
+            "2")   HTTP_VERSION_FLAG="--http2" ;;
+            *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
+          esac
+        fi
         ;;
     esac
   done
@@ -571,11 +576,6 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
-
-if [ "$os" = "windows" ]; then
-  #unset HTTP_VERSION_FLAG arg
-  HTTP_VERSION_FLAG=""
-fi
 
 binid="${os}/${arch}"
 parse_args "$@"
