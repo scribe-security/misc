@@ -209,7 +209,20 @@ http_download_status() {
   # Use curl if available
   if is_command curl; then
     # Perform the request and capture the response body and status code
-    response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+    if [ -z "$auth_header" ]; then
+        if [ -z "$HTTP_VERSION_FLAG" ]; then
+          response=$(curl --silent --write-out "%{http_code}" "$source_url" -o /tmp/curl_response_body.txt)
+        else
+          response=$(curl --silent --write-out "%{http_code}" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+        fi
+    else
+        if [ -z "$HTTP_VERSION_FLAG" ]; then
+          response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+        else
+          response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
+        fi
+    fi
+
     status_code=$(echo "$response" | tail -n 1)
     response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
     
@@ -244,7 +257,19 @@ http_download_stdout() {
   fi
 
   if is_command curl; then
-    curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+    if [ -z "$auth_header" ]; then
+      if [ -z "$HTTP_VERSION_FLAG" ]; then
+        curl --silent "${source_url}"
+      else
+        curl --silent "${HTTP_VERSION_FLAG}" ${source_url}
+      fi
+    else
+      if [ -z "$HTTP_VERSION_FLAG" ]; then
+        curl --silent -H "$auth_header" "${source_url}"
+      else
+        curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+      fi
+    fi
     return
   elif is_command wget; then
     wget -q --header "$auth_header" -O /dev/stdout ${source_url}
@@ -265,9 +290,20 @@ http_download_curl() {
   fi
 
   if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
+    if [ -z "$HTTP_VERSION_FLAG" ]; then
+      code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${source_url}")
+    else
+      code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "${source_url}")
+    fi
+
+    # code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
   else
-    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
+    if [ -z "$HTTP_VERSION_FLAG" ]; then
+      code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" ${auth_header} "${source_url}")
+    else
+      code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "${source_url}")
+    fi
+    # code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
   fi
 
 
@@ -525,7 +561,7 @@ parse_args() {
           "2")   HTTP_VERSION_FLAG="--http2" ;;
           *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
         esac
-        ;;
+      ;;
     esac
   done
 
@@ -570,6 +606,11 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
+
+if [ "$os" = "windows" ]; then
+  log_debug "Detected Windows OS, no http version flag set"
+  HTTP_VERSION_FLAG=""
+fi
 
 binid="${os}/${arch}"
 parse_args "$@"
