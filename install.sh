@@ -4,10 +4,6 @@ download_url="https://scribesecuriy.jfrog.io/artifactory"
 install_dir="${HOME}/.scribe/bin"
 HTTP_VERSION_FLAG=--http2
 
-if [ "$os" = "windows" ]; then
-  HTTP_VERSION_FLAG=""
-fi
-
 get_latest_artifact() {
   download_url="$1"
   download_repo="$2"
@@ -262,13 +258,32 @@ http_download_curl() {
   # Add Basic Auth Header if username and password are provided
   if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
     auth_header="-u${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
+    auth_header_str="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
   fi
 
-  if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
-  else
-    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
-  fi
+    if [ "$os" = "windows" ]; then
+      # For Windows, we don't use HTTP version flags
+      if [ -z "$header" ]; then
+        if [ -z "$auth_header" ]; then
+          code=$(curl -w '%{http_code}' -L -H "$auth_header_str" -o "$local_file" "$source_url")
+        else
+          code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
+        fi
+      else
+        if [ -z "$auth_header" ]; then
+          code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
+        else
+          code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header_str" -o "$local_file" "$source_url")
+        fi
+      fi
+
+    else
+      if [ -z "$header" ]; then
+        code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
+      else
+        code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
+      fi
+    fi
 
 
   if [ "$code" -eq 401 ]; then
@@ -570,6 +585,11 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
+
+if [ "$os" = "windows" ]; then
+  HTTP_VERSION_FLAG=""
+fi
+
 
 binid="${os}/${arch}"
 parse_args "$@"
