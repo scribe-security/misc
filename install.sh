@@ -4,10 +4,6 @@ download_url="https://scribesecuriy.jfrog.io/artifactory"
 install_dir="${HOME}/.scribe/bin"
 HTTP_VERSION_FLAG=--http2
 
-if [ "$os" = "windows" ]; then
-  HTTP_VERSION_FLAG=""
-fi
-
 get_latest_artifact() {
   download_url="$1"
   download_repo="$2"
@@ -570,6 +566,11 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
+
+if [ "$os" = "windows" ]; then
+  HTTP_VERSION_FLAG=""
+fi
+
 
 binid="${os}/${arch}"
 parse_args "$@"
