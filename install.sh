@@ -245,7 +245,11 @@ http_download_stdout() {
   fi
 
   if is_command curl; then
-    curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+    if [ -z "$auth_header" ]; then
+      curl --silent "${HTTP_VERSION_FLAG}" ${source_url}
+    else
+      curl --silent -H "$auth_header" "${HTTP_VERSION_FLAG}" ${source_url}
+    fi
     return
   elif is_command wget; then
     wget -q --header "$auth_header" -O /dev/stdout ${source_url}
@@ -520,18 +524,13 @@ parse_args() {
       U) BASIC_AUTH_USERNAME="$OPTARG" ;;  # Accept basic auth username
       P) BASIC_AUTH_PASSWORD="$OPTARG" ;;  # Accept basic auth password
       V)
-        if [ "$os" = "windows" ]; then
-          #unset HTTP_VERSION_FLAG arg
-          HTTP_VERSION_FLAG=""
-        else
-          case "$OPTARG" in
-            "1.0") HTTP_VERSION_FLAG="--http1.0" ;;
-            "1.1") HTTP_VERSION_FLAG="--http1.1" ;;
-            "2")   HTTP_VERSION_FLAG="--http2" ;;
-            *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
-          esac
-        fi
-        ;;
+        case "$OPTARG" in
+          "1.0") HTTP_VERSION_FLAG="--http1.0" ;;
+          "1.1") HTTP_VERSION_FLAG="--http1.1" ;;
+          "2")   HTTP_VERSION_FLAG="--http2" ;;
+          *)     log_err "Unsupported HTTP version: ${OPTARG}. Using default curl behavior." ;;
+        esac
+      ;;
     esac
   done
 
@@ -576,6 +575,11 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
+
+if [ "$os" = "windows" ]; then
+  log_debug "Detected Windows OS, no http version flag set"
+  HTTP_VERSION_FLAG=""
+fi
 
 binid="${os}/${arch}"
 parse_args "$@"
