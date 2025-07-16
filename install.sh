@@ -205,7 +205,13 @@ http_download_status() {
   # Use curl if available
   if is_command curl; then
     # Perform the request and capture the response body and status code
-    response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+    if [ $os = "windows" ]; then
+      # Windows curl does not support --http1.0 or --http1.1, so we skip it
+      response=$(curl --silent -H "$auth_header" "$source_url" -o /tmp/curl_response_body.txt)
+    else
+      response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
+    fi
+
     status_code=$(echo "$response" | tail -n 1)
     response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
     
@@ -257,14 +263,23 @@ http_download_curl() {
   
   # Add Basic Auth Header if username and password are provided
   if [ -n "$BASIC_AUTH_USERNAME" ] && [ -n "$BASIC_AUTH_PASSWORD" ]; then
-    auth_header="-u${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
+    if [ $os = "windows" ]; then
+      auth_header="Authorization: Basic $(echo -n "${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}" | base64)"
+      if [ -z "$header" ]; then
+        code=$(curl -w '%{http_code}' -L -H "$auth_header" -o "$local_file" "$source_url")
+      else
+        code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "$source_url")
+      fi
+    else
+      auth_header="-u${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
+      if [ -z "$header" ]; then
+        code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
+      else
+        code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
+      fi
+    fi
   fi
 
-  if [ -z "$header" ]; then
-    code=$(curl -w '%{http_code}' -L -o "$local_file" ${auth_header} "${HTTP_VERSION_FLAG}" "$source_url")
-  else
-    code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header" -o "$local_file" "${HTTP_VERSION_FLAG}" "$source_url")
-  fi
 
 
   if [ "$code" -eq 401 ]; then
