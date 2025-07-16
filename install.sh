@@ -210,7 +210,7 @@ http_download_status() {
     else
           response=$(curl --silent --write-out "%{http_code}" -H "$auth_header" "$source_url" "${HTTP_VERSION_FLAG}" -o /tmp/curl_response_body.txt)
     fi
-    
+
     status_code=$(echo "$response" | tail -n 1)
     response_body=$(cat /tmp/curl_response_body.txt)  # Capture the response body
     
@@ -571,6 +571,11 @@ supported_tools="valint"
 default_tool="valint"
 tools=""
 trap 'rm -rf -- "$download_dir"' EXIT
+
+if [ "$os" = "windows" ]; then
+  #unset HTTP_VERSION_FLAG arg
+  HTTP_VERSION_FLAG=""
+fi
 
 binid="${os}/${arch}"
 parse_args "$@"
