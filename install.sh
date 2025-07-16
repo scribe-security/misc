@@ -264,9 +264,17 @@ http_download_curl() {
     if [ "$os" = "windows" ]; then
       # For Windows, we don't use HTTP version flags
       if [ -z "$header" ]; then
-        code=$(curl -w '%{http_code}' -L -H "$auth_header_str" -o "$local_file" "$source_url")
+        if [ -z "$auth_header" ]; then
+          code=$(curl -w '%{http_code}' -L -H "$auth_header_str" -o "$local_file" "$source_url")
+        else
+          code=$(curl -w '%{http_code}' -L -o "$local_file" "$source_url")
+        fi
       else
-        code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header_str" -o "$local_file" "$source_url")
+        if [ -z "$auth_header" ]; then
+          code=$(curl -w '%{http_code}' -L -H "$header" -o "$local_file" "$source_url")
+        else
+          code=$(curl -w '%{http_code}' -L -H "$header" -H "$auth_header_str" -o "$local_file" "$source_url")
+        fi
       fi
 
     else
