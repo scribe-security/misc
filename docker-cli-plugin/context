@@ -1,0 +1,320 @@
+#!/usr/bin/env bash
+# ------------------------------------------------------------------------------
+# Collect pipeline + git context from various CI platforms (or local),
+# printing each pair as two lines:
+#
+#   1) key
+#   2) value
+#
+# So the while-read loop can consume them in strict pairs.
+# ------------------------------------------------------------------------------
+
+PLATFORM_GITHUB="github"
+PLATFORM_GITLAB="gitlab"
+PLATFORM_BITBUCKET="bitbucket"
+PLATFORM_AZURE="azure"
+PLATFORM_CIRCLECI="circleci"
+PLATFORM_TRAVIS="travis"
+PLATFORM_JENKINS="jenkins"
+PLATFORM_LOCAL="local"
+
+# Detect platform based on environment variables
+autodetect_platform() {
+  if [[ -n "$GITHUB_RUN_ID" ]]; then
+    echo "$PLATFORM_GITHUB"
+  elif [[ -n "$CI_JOB_ID" ]]; then
+    echo "$PLATFORM_GITLAB"
+  elif [[ -n "$BITBUCKET_BUILD_NUMBER" ]]; then
+    echo "$PLATFORM_BITBUCKET"
+  elif [[ -n "$AZURE_RUN_ID" || -n "$BUILD_BUILDID" ]]; then
+    echo "$PLATFORM_AZURE"
+  elif [[ -n "$CIRCLE_BUILD_NUM" ]]; then
+    echo "$PLATFORM_CIRCLECI"
+  elif [[ -n "$TRAVIS_JOB_ID" ]]; then
+    echo "$PLATFORM_TRAVIS"
+  elif [[ -n "$BUILD_ID" ]]; then
+    echo "$PLATFORM_JENKINS"
+  else
+    echo "$PLATFORM_LOCAL"
+  fi
+}
+
+# Normalize Git URLs (e.g. "git@github.com:user/repo" => "https://github.com/user/repo.git")
+normalize_git_url() {
+  local url="$1"
+  url="$(echo -e "${url}" | sed 's/^ *//;s/ *$//')"  # trim spaces
+
+  if [[ "$url" =~ ^git@github\.com:(.*)$ ]]; then
+    url="https://github.com/${BASH_REMATCH[1]}.git"
+  elif [[ "$url" =~ ^git@(.*)$ ]]; then
+    local after_git="${BASH_REMATCH[1]}"
+    after_git="${after_git#:}"
+    url="https://${after_git}"
+  elif [[ "$url" =~ ^https://github\.com/.* && ! "$url" =~ \.git$ ]]; then
+    url="${url}.git"
+  fi
+  echo "$url"
+}
+
+# ------------------------------------------------------------------------------
+# The big difference: For each key-value pair, we do:
+#
+#   echo "$key"
+#   echo "$value"
+#
+# So that the reading loop picks them up in pairs, line by line.
+# ------------------------------------------------------------------------------
+collect_pipeline_and_git() {
+  local platform="$1"
+
+  case "$platform" in
+    # --------------------------------------------------------------------------
+    # GITHUB
+    # --------------------------------------------------------------------------
+    "github")
+      echo "platform";     echo "github"
+      echo "run_id";       echo "${GITHUB_RUN_ID:-}"
+      echo "actor";        echo "${GITHUB_ACTOR:-}"
+      echo "workflow";     echo "${GITHUB_WORKFLOW:-}"
+      echo "job_name";     echo ""  # GH doesn't have a single "job_name" var
+      echo "event";        echo "${GITHUB_EVENT_NAME:-}"
+      echo "organization"; echo "${GITHUB_REPOSITORY_OWNER:-}"
+
+      local git_commit="${GITHUB_SHA:-}"
+      local git_ref="${GITHUB_REF:-}"
+      local branch=""
+      if [[ -n "$git_ref" ]]; then
+        branch="${git_ref##*/}"
+      fi
+
+      # Build a Git URL if GITHUB_REPOSITORY is set
+      local server="${GITHUB_SERVER_URL:-https://github.com}"
+      local full_repo_url=""
+      if [[ -n "$GITHUB_REPOSITORY" ]]; then
+        full_repo_url="${server}/${GITHUB_REPOSITORY}.git"
+      fi
+      full_repo_url="$(normalize_git_url "$full_repo_url")"
+
+      echo "git_commit"; echo "$git_commit"
+      echo "git_ref";    echo "$git_ref"
+      echo "git_branch"; echo "$branch"
+      echo "git_url";    echo "$full_repo_url"
+      echo "git_tag";    echo ""
+      ;;
+
+    # --------------------------------------------------------------------------
+    # GITLAB
+    # --------------------------------------------------------------------------
+    "gitlab")
+      echo "platform";     echo "gitlab"
+      echo "run_id";       echo "${CI_JOB_ID:-}"
+      echo "actor";        echo "${GITLAB_USER_NAME:-}"
+      echo "workflow";     echo "${CI_PIPELINE_NAME:-}"
+      echo "job_name";     echo "${CI_JOB_NAME:-}"
+      echo "event";        echo "${CI_PIPELINE_SOURCE:-}"
+      echo "organization"; echo "${CI_PROJECT_ROOT_NAMESPACE:-}"
+
+      echo "git_url";    echo "${CI_REPOSITORY_URL:-}"
+      echo "git_commit"; echo "${CI_COMMIT_SHA:-}"
+      echo "git_ref";    echo "${CI_COMMIT_REF_NAME:-}"
+      echo "git_branch"; echo "${CI_COMMIT_BRANCH:-}"
+      echo "git_tag";    echo "${CI_COMMIT_TAG:-}"
+      ;;
+
+    # --------------------------------------------------------------------------
+    # BITBUCKET
+    # --------------------------------------------------------------------------
+    "bitbucket")
+      echo "platform";     echo "bitbucket"
+      echo "run_id";       echo "${BITBUCKET_PIPELINE_UUID:-}"
+      echo "actor";        echo "${BITBUCKET_STEP_TRIGGERER_UUID:-}"
+      echo "workflow";     echo "${BITBUCKET_PIPELINE_UUID:-}"
+      echo "job_name";     echo "${BITBUCKET_STEP_UUID:-}"
+      echo "event";        echo ""
+      echo "organization"; echo "${BITBUCKET_WORKSPACE:-}"
+
+      local bb_commit="${BITBUCKET_COMMIT:-}"
+      local bb_branch="${BITBUCKET_BRANCH:-}"
+      local bb_tag="${BITBUCKET_TAG:-}"
+      local ref=""
+      if [[ -n "$bb_tag" ]]; then
+        ref="refs/tags/$bb_tag"
+      elif [[ -n "$bb_branch" ]]; then
+        ref="refs/heads/$bb_branch"
+      fi
+      local origin="${BITBUCKET_GIT_HTTP_ORIGIN:-}.git"
+      origin="$(normalize_git_url "$origin")"
+
+      echo "git_commit"; echo "$bb_commit"
+      echo "git_branch"; echo "$bb_branch"
+      echo "git_ref";    echo "$ref"
+      echo "git_url";    echo "$origin"
+      echo "git_tag";    echo "$bb_tag"
+      ;;
+
+    # --------------------------------------------------------------------------
+    # AZURE
+    # --------------------------------------------------------------------------
+    "azure")
+      echo "platform"; echo "azure"
+      local run_id="${AZURE_RUN_ID:-$BUILD_BUILDID}"
+      echo "run_id";   echo "$run_id"
+      echo "actor";    echo "${BUILD_REQUESTEDFORID:-}"
+      echo "workflow"; echo "${SYSTEM_DEFINITIONNAME:-}"
+      echo "job_name"; echo "${SYSTEM_JOBNAME:-}"
+      echo "event";    echo "${BUILD_REASON:-}"
+      echo "organization"; echo ""
+
+      local commit="${BUILD_SOURCEVERSION:-}"
+      local branch_name="${BUILD_SOURCEBRANCHNAME:-}"
+      local ref="${BUILD_SOURCEBRANCH:-}"
+      local url="$(normalize_git_url "${BUILD_REPOSITORY_URI:-}")"
+
+      echo "git_commit"; echo "$commit"
+      echo "git_ref";    echo "$ref"
+      echo "git_branch"; echo "$branch_name"
+      echo "git_url";    echo "$url"
+      echo "git_tag";    echo ""
+      ;;
+
+    # --------------------------------------------------------------------------
+    # CIRCLECI
+    # --------------------------------------------------------------------------
+    "circleci")
+      echo "platform";     echo "circleci"
+      echo "run_id";       echo "${CIRCLE_WORKFLOW_ID:-}"
+      echo "actor";        echo "${CIRCLE_PROJECT_USERNAME:-}"
+      echo "workflow";     echo "${CIRCLE_WORKFLOW_ID:-}"
+      echo "job_name";     echo "${CIRCLE_JOB:-}"
+      echo "event";        echo ""
+      echo "organization"; echo "${CIRCLE_ORGANIZATION_ID:-}"
+
+      local cci_commit="${CIRCLE_SHA1:-}"
+      local cci_branch="${CIRCLE_BRANCH:-}"
+      local cci_tag="${CIRCLE_TAG:-}"
+      local cci_ref="${CIRCLE_REF:-}"
+      if [[ -n "$cci_tag" ]]; then
+        cci_ref="refs/tags/$cci_tag"
+      elif [[ -n "$cci_branch" ]]; then
+        cci_ref="refs/heads/$cci_branch"
+      fi
+      local cci_url="$(normalize_git_url "${CIRCLE_REPOSITORY_URL:-}")"
+
+      echo "git_commit"; echo "$cci_commit"
+      echo "git_ref";    echo "$cci_ref"
+      echo "git_branch"; echo "$cci_branch"
+      echo "git_url";    echo "$cci_url"
+      echo "git_tag";    echo "$cci_tag"
+      ;;
+
+    # --------------------------------------------------------------------------
+    # TRAVIS
+    # --------------------------------------------------------------------------
+    "travis")
+      echo "platform";     echo "travis"
+      echo "run_id";       echo "${TRAVIS_JOB_ID:-}"
+      echo "actor";        echo ""
+      echo "workflow";     echo ""
+      echo "job_name";     echo ""
+      echo "event";        echo ""  # TRAVIS_EVENT_TYPE is "push"/"pull_request", etc.
+      echo "organization"; echo ""
+
+      echo "git_branch"; echo "${TRAVIS_BRANCH:-}"
+      echo "git_commit"; echo "${TRAVIS_COMMIT:-}"
+      echo "git_ref";    echo "${TRAVIS_REF:-}"
+      echo "git_url";    echo ""
+      echo "git_tag";    echo "${TRAVIS_TAG:-}"
+      ;;
+
+    # --------------------------------------------------------------------------
+    # JENKINS
+    # --------------------------------------------------------------------------
+    "jenkins")
+      echo "platform";     echo "jenkins"
+      echo "run_id";       echo "${BUILD_ID:-}"
+      echo "actor";        echo ""
+      echo "workflow";     echo "${JOB_NAME:-}"
+      echo "job_name";     echo "${STAGE_NAME:-}"
+      echo "event";        echo ""
+      echo "organization"; echo ""
+
+      local j_commit="${GIT_COMMIT:-}"
+      local j_branch="${GIT_BRANCH:-}"
+      local j_url="${GIT_URL:-}"
+
+      echo "git_commit"; echo "$j_commit"
+      echo "git_branch"; echo "$j_branch"
+      echo "git_ref";    echo "$j_branch"  # Sometimes "refs/heads/main"
+      echo "git_url";    echo "$j_url"
+      echo "git_tag";    echo ""
+      ;;
+
+    # --------------------------------------------------------------------------
+    # LOCAL fallback
+    # --------------------------------------------------------------------------
+    *)
+      # pipeline context
+      echo "platform";     echo "local"
+      echo "run_id";       echo ""
+      echo "actor";        echo "${USER:-unknown_user}"
+      echo "workflow";     echo ""
+      echo "job_name";     echo ""
+      echo "event";        echo ""
+      echo "organization"; echo ""
+
+      # attempt local git info
+      local git_url="" git_commit="" git_branch="" git_ref="" git_tag=""
+      if git rev-parse HEAD >/dev/null 2>&1; then
+        git_url="$(git remote get-url origin 2>/dev/null || echo "")"
+        git_url="$(normalize_git_url "$git_url")"
+        git_commit="$(git rev-parse HEAD)"
+        git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")"
+        git_ref="$git_branch"
+        git_tag="$(git describe --tags --exact-match 2>/dev/null || echo "")"
+      fi
+
+      echo "git_url";    echo "$git_url"
+      echo "git_commit"; echo "$git_commit"
+      echo "git_branch"; echo "$git_branch"
+      echo "git_ref";    echo "$git_ref"
+      echo "git_tag";    echo "$git_tag"
+      ;;
+  esac
+}
+
+#------------------------------------------------------------------------------
+# main
+#   1) Auto-detect (or use $1) which platform.
+#   2) Collect pipeline+git pairs, read them line-by-line (key + value).
+#   3) Finally print them out as "key=value" lines.
+#------------------------------------------------------------------------------
+main() {
+  local platform="$1"
+  if [[ -z "$platform" ]]; then
+    platform="$(autodetect_platform)"
+  fi
+
+  local -a pairs=()
+  while IFS='' read -r key && IFS='' read -r val; do
+    pairs+=( "$key" "$val" )
+  done < <( collect_pipeline_and_git "$platform" )
+
+  echo "===== Pipeline & Git Context (platform: $platform) ====="
+  local i
+  for (( i=0; i<${#pairs[@]}; i+=2 )); do
+    local k="${pairs[i]}"
+    local v="${pairs[i+1]}"
+
+    # if v is empty, skip
+    if [[ -z "$v" ]]; then
+      continue
+    fi
+
+    # UPPER CASE
+    k="$(echo "$k" | tr '[:lower:]' '[:upper:]')"
+    export DOCKER_CONTEXT_$k="$v"
+    echo "$k=$v"
+  done
+}
+
+main "$@"

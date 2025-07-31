@@ -1,0 +1,17 @@
+name: "Docker-Scribe-Default"
+defaults:
+  evidence:
+    signed: false
+rules:
+  - uses: images/verify-labels-exist@v1
+    name: "OCI Labels"
+    level: warning
+    with:
+      labels:
+      - org.opencontainers.image.source  # URL to get source code 
+      - org.opencontainers.image.revision # Source control revision identifier
+      - org.opencontainers.image.version # Image Build Version (Predefined)
+      - org.opencontainers.image.run_id # Image run id  (Custom)
+      - org.opencontainers.image.workflow # Image workflow id  (Custom)
+      - org.opencontainers.image.build_num # Image build_num id  (Custom)
+      - org.opencontainers.image.job_name # Image job_name id  (Custom)
