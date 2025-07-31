@@ -10,9 +10,9 @@ curl -sSfL https://raw.githubusercontent.com/scribe-security/misc/master/docker-
 ```
 
 ## Gensbom
-Gensbom is a CLI tool by Scribe which analyzes components and creates sboms. \
-Gensbom sboms are populated cyclondex sbom with target packages, files, layers, and dependancies. \
-Gensbom also supports signed sbom as populated Intoto attestations using the cocosign framework.
+Gensbom is a CLI tool by Scribe which analyzes components and creates SBOMs. \
+Gensbom SBOMs are populated CycloneDX SBOM with target packages, files, layers, and dependencies. \
+Gensbom also supports signed SBOM as populated in-toto attestations using the cocosign framework. Scribe uses the **cocosign** library we developed to deal with digital signatures for signing and verification.
 
 ## Supported plugins
 ### Bom
@@ -25,12 +25,12 @@ docker bom busybox:latest -v
 ```
 
 ### basic usage
-Gensbom allows you to create sboms in multiple flavors.
+Gensbom allows you to create SBOMs in multiple flavors.
 
 <details>
-  <summary> Cyclonedx </summary>
+  <summary> CycloneDX </summary>
 
-Cyclonedx sbom with all the available components.
+CycloneDX SBOM with all the available components.
 
 ```bash
 docker bom busybox:latest -o json
@@ -41,7 +41,7 @@ docker bom busybox:latest -o xml
 <details>
   <summary> Statement </summary>
 
-Intoto statement is basically an unsigned attestation.
+In-toto statement is basically an unsigned attestation.
 Output can be useful if you like to connect to other attestation frameworks such as `cosign`.
 
 ```bash
@@ -52,7 +52,7 @@ docker bom busybox:latest -o statement
 <details>
   <summary> Attestations </summary>
 
-Intoto Attestation output, default via keyless sigstore flow 
+In-toto Attestation output, default via keyless Sigstore flow 
 ```bash
 docker bom busybox:latest -o attest
 ``` 
@@ -62,7 +62,7 @@ docker bom busybox:latest -o attest
 <details>
   <summary> Metadata only </summary>
 
-You may select which components groups are added to your sbom.
+You may select which components groups are added to your SBOM.
 For example you may use Gensbom to simply sign and verify your images, you only really need the `metadata` group.
 Note metadata is implicate (BOM must include something).
 ```bash
@@ -76,7 +76,7 @@ docker bom busybox:latest --components packages,files,dep #Include packages file
   <summary> Attach external data </summary>
 
 Gensbom allows you to include external files content as part of the reported evidence.
-For example you may use Gensbom to include a external security report in your sbom.
+For example you may use Gensbom to include a external security report in your SBOM.
 ```bash
 docker bom busybox:latest -vv -A **/some_report.json
 ``` 
@@ -96,13 +96,13 @@ docker verify busybox:latest -v
 Scribe provides a set of services allowing you to secure your supply chain. \
 Use configuration/args to set `scribe.client-id` (`-U`), `scribe.client-secret` (`-P`) provided by scribe.
 Lastly enable scribe client using `-E` flag.
-Gensbom will upload/download sboms to your scribe account.
+Gensbom will upload/download SBOM to your scribe account.
 
 <details>
   <summary> Signing </summary>
 
 You can use scribe signing service to sign.
-Scribe will sign sbom for you and provide access to the signed attestation.
+Scribe will sign SBOM for you and provide access to the signed attestation.
 Scribe service will allow you to verify against Scribe Root CA against your account identity.
 You may can use the default Scribe `cocosign` configuration flag.
 
@@ -126,4 +126,4 @@ docker bom busybox:latest -E --U ${CLIENT_ID} -P ${CLIENT_SECRET} -v
 </details>
 
 # Dev
-See details [CLI documentation - dev](docs/dev.md)
+See details [CLI documentation - dev](docs/dev)
