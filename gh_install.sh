@@ -9,7 +9,7 @@ API_BASE="${VALINT_DOWNLOAD_URL:-https://api.github.com}"         # GitHub API b
 INSTALL_DIR="${SCRIBE_INSTALL_DIR:-$HOME/.scribe/bin}"
 TOOL_DEFAULT="valint"
 HTTP_VERSION_FLAG=${HTTP_VERSION_FLAG:---http2}
-if [ "$os" = "windows" ]; then
+if [ "$OS" = "windows" ]; then
   HTTP_VERSION_FLAG=""
 fi
 
@@ -316,7 +316,7 @@ OS="$(goos)"
 ARCH="$(goarch)"
 BIN_DIR="$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
-if [ "$os" = "windows" ]; then
+if [ "$OS" = "windows" ]; then
   log_debug "Detected Windows OS, no http version flag set"
   HTTP_VERSION_FLAG=""
 fi
