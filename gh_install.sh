@@ -317,7 +317,7 @@ ARCH="$(goarch)"
 BIN_DIR="$INSTALL_DIR"
 mkdir -p "$BIN_DIR"
 if [ "$OS" = "windows" ]; then
-  log_debug "Detected Windows OS, no http version flag set"
+  debug "Detected Windows OS, no http version flag set"
   HTTP_VERSION_FLAG=""
 fi
 
