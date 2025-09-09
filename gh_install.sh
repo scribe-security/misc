@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ex
 
 # -------------------------------------------------------------------
 # Defaults (override with -R / -b or env vars)
