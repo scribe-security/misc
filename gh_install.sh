@@ -25,6 +25,13 @@ debug() { [ -n "$DEBUG" ] && log debug "$*"; :; }
 err()   { log err "$*"; }
 
 need() {
+  # Try and install missing dependency if fails exit 1
+  if ! command -v "$1" >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+      sudo apt-get update
+      sudo apt-get install -y "$1"
+  fi
+
   command -v "$1" >/dev/null 2>&1 || { err "missing dependency: $1"; exit 1; }
 }
 
