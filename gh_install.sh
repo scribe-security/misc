@@ -337,7 +337,7 @@ TOOLS="$(printf '%s' "$TOOLS" | tr ',' ' ')"
 
 need curl
 
-ensure_jq
+ensure_jq || true
 need jq
 
 OS="$(goos)"
