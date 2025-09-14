@@ -25,14 +25,33 @@ debug() { [ -n "$DEBUG" ] && log debug "$*"; :; }
 err()   { log err "$*"; }
 
 need() {
-  # Try and install missing dependency if fails exit 1
-  if ! command -v "$1" >/dev/null 2>&1; then
-    if command -v apt-get >/dev/null 2>&1; then
-      sudo apt-get update
-      sudo apt-get install -y "$1"
-  fi
-
   command -v "$1" >/dev/null 2>&1 || { err "missing dependency: $1"; exit 1; }
+}
+
+ensure_jq() {
+  command -v jq >/dev/null 2>&1 && return 0
+  os="$(goos)"; arch="$(goarch)"
+  mkdir -p "$HOME/.scribe/bin"
+  case "$os/$arch" in
+    linux/amd64)
+      url="https://github.com/jqlang/jq/releases/download/jq-1.6/jq-linux64"
+      dst="$HOME/.scribe/bin/jq"
+      ;;
+    darwin/amd64)
+      url="https://github.com/jqlang/jq/releases/download/jq-1.6/jq-osx-amd64"
+      dst="$HOME/.scribe/bin/jq"
+      ;;
+    windows/amd64)
+      url="https://github.com/jqlang/jq/releases/download/jq-1.6/jq-win64.exe"
+      dst="$HOME/.scribe/bin/jq.exe"
+      ;;
+    *)
+      err "jq not found and auto-bootstrap not defined for $os/$arch"
+      return 1
+      ;;
+  esac
+  curl -fsSL "$url" -o "$dst" && chmod +x "$dst" 2>/dev/null || true
+  export PATH="$HOME/.scribe/bin:$PATH"
 }
 
 # -------------------------------------------------------------------
@@ -317,6 +336,8 @@ shift $((OPTIND-1))
 TOOLS="$(printf '%s' "$TOOLS" | tr ',' ' ')"
 
 need curl
+
+ensure_jq
 need jq
 
 OS="$(goos)"
