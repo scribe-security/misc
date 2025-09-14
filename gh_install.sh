@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ex
 
 # -------------------------------------------------------------------
 # Defaults (override with -R / -b or env vars)
@@ -21,8 +21,16 @@ info()  { log info "$*"; }
 debug() { [ -n "$DEBUG" ] && log debug "$*"; :; }
 err()   { log err "$*"; }
 
+have() { command -v "$1" >/dev/null 2>&1; }
+
 need() {
   command -v "$1" >/dev/null 2>&1 || { err "missing dependency: $1"; exit 1; }
+}
+
+require_http() {
+  if have curl || have wget; then return 0; fi
+  err "missing dependency: curl or wget"
+  exit 1
 }
 
 ensure_jq() {
@@ -47,7 +55,12 @@ ensure_jq() {
       return 1
       ;;
   esac
-  curl -fsSL "$url" -o "$dst" && chmod +x "$dst" 2>/dev/null || true
+  if have curl; then
+    curl -fsSL "$url" -o "$dst"
+  else
+    wget -q -O "$dst" "$url"
+  fi
+  chmod +x "$dst" 2>/dev/null || true
   export PATH="$HOME/.scribe/bin:$PATH"
 }
 
@@ -98,19 +111,31 @@ bin_name_for(){
 # GitHub API wrappers (curl + jq)
 # -------------------------------------------------------------------
 gh_curl() {
-  # Args: URL
   url="$1"
 
-  # Build argv safely with "set --"
-  set -- -sS -L --compressed
-  [ -n "$HTTP_VERSION_FLAG" ] && set -- "$@" "$HTTP_VERSION_FLAG"
-  set -- "$@" -H "User-Agent: scribe-installer"
-  set -- "$@" -H "Accept: application/vnd.github+json"
-  [ -n "$GITHUB_TOKEN" ] && set -- "$@" -H "Authorization: Bearer ${GITHUB_TOKEN}"
-  set -- "$@" "$url"
-
-  curl "$@"
+  if have curl; then
+    set -- -sS -L --compressed
+    [ -n "$HTTP_VERSION_FLAG" ] && set -- "$@" "$HTTP_VERSION_FLAG"
+    set -- "$@" -H "User-Agent: scribe-installer"
+    set -- "$@" -H "Accept: application/vnd.github+json"
+    [ -n "$GITHUB_TOKEN" ] && set -- "$@" -H "Authorization: Bearer ${GITHUB_TOKEN}"
+    set -- "$@" "$url"
+    curl "$@"
+  else
+    # wget path (HTTP/2 flag ignored; wget is HTTP/1.1)
+    set -- --quiet --tries=3
+    # --compression=auto (if supported) helps with gzip; harmless if unknown
+    if wget --help 2>/dev/null | grep -q -- '--compression'; then
+      set -- "$@" --compression=auto
+    fi
+    set -- "$@" --header="User-Agent: scribe-installer"
+    set -- "$@" --header="Accept: application/vnd.github+json"
+    [ -n "$GITHUB_TOKEN" ] && set -- "$@" --header="Authorization: Bearer ${GITHUB_TOKEN}"
+    set -- "$@" -O - "$url"
+    wget "$@"
+  fi
 }
+
 gh_release_latest_json() {
   # Explicit opt-in to prereleases via -D or ENV=dev
   prefer_pre=0
@@ -332,7 +357,7 @@ shift $((OPTIND-1))
 [ -n "$TOOLS" ] || TOOLS="$TOOL_DEFAULT"
 TOOLS="$(printf '%s' "$TOOLS" | tr ',' ' ')"
 
-need curl
+require_http
 
 ensure_jq || true
 need jq
