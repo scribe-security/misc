@@ -262,19 +262,30 @@ find_tag_asset_url() {
 # Download + install
 # -------------------------------------------------------------------
 http_download_file() {
-  # Args: url dest
   url="$1"
   dest="$2"
 
-  set -- -sS -L --compressed -o "$dest"
-  [ -n "$HTTP_VERSION_FLAG" ] && set -- "$@" "$HTTP_VERSION_FLAG"
-  set -- "$@" -H "User-Agent: scribe-installer"
-  # octet-stream helps when hitting asset URLs
-  set -- "$@" -H "Accept: application/octet-stream"
-  [ -n "$GITHUB_TOKEN" ] && set -- "$@" -H "Authorization: Bearer ${GITHUB_TOKEN}"
-  set -- "$@" "$url"
-
-  curl "$@"
+  if have curl; then
+    set -- -sS -L --compressed -o "$dest"
+    [ -n "$HTTP_VERSION_FLAG" ] && set -- "$@" "$HTTP_VERSION_FLAG"
+    set -- "$@" -H "User-Agent: scribe-installer"
+    set -- "$@" -H "Accept: application/octet-stream"
+    [ -n "$GITHUB_TOKEN" ] && set -- "$@" -H "Authorization: Bearer ${GITHUB_TOKEN}"
+    set -- "$@" "$url"
+    curl "$@"
+  else
+    # wget path (HTTP/2 flag not applicable)
+    set -- --quiet
+    # gzip/deflate if supported
+    if wget --help 2>/dev/null | grep -q -- '--compression'; then
+      set -- "$@" --compression=auto
+    fi
+    set -- "$@" --header="User-Agent: scribe-installer"
+    set -- "$@" --header="Accept: application/octet-stream"
+    [ -n "$GITHUB_TOKEN" ] && set -- "$@" --header="Authorization: Bearer ${GITHUB_TOKEN}"
+    set -- "$@" -O "$dest" "$url"
+    wget "$@"
+  fi
 }
 
 
