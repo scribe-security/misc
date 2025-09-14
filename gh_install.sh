@@ -9,9 +9,6 @@ API_BASE="${VALINT_DOWNLOAD_URL:-https://api.github.com}"         # GitHub API b
 INSTALL_DIR="${SCRIBE_INSTALL_DIR:-$HOME/.scribe/bin}"
 TOOL_DEFAULT="valint"
 HTTP_VERSION_FLAG=${HTTP_VERSION_FLAG:---http2}
-if [ "$OS" = "windows" ]; then
-  HTTP_VERSION_FLAG=""
-fi
 
 # ENV=dev|feature  → prefer prereleases for "latest"
 # GITHUB_TOKEN     → use for auth/rate-limit
